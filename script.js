@@ -52,6 +52,8 @@ const appState = {
     filterSidebarOpen: false,
     adminSection: 'dashboard',
     darkMode: localStorage.getItem('darkMode') === 'true'
+    carouselIndex: 0, // ADICIONE ESTA LINHA
+    carouselInterval: null // ADICIONE ESTA LINHA
 };
 
 // Config de contato
@@ -1269,6 +1271,7 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
 
