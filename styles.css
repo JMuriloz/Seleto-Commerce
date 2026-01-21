@@ -531,6 +531,17 @@ html.dark .caret {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+.modal-content { padding: 1.25rem; }
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #6B7280;
+}
+.modal-close:hover { color: #111827; }
+.modal-backdrop { backdrop-filter: blur(4px); }
+
 .modal-backdrop.active .modal-content { 
   transform: scale(1) translateY(0); 
 }

@@ -213,6 +213,7 @@ async function handleGoogleLogin() {
             appState.adminUser = result.user;
             appState.isAdmin = true;
             showToast('Login realizado!', 'success');
+            updateAdminButton();
             navigateTo('admin-dashboard');
         }
     } catch (error) {
@@ -226,6 +227,7 @@ function handleLogout() {
         appState.isAdmin = false;
         appState.adminUser = null;
         showToast('Logout realizado.', 'info');
+        updateAdminButton();
         navigateTo('home');
     });
 }
@@ -234,11 +236,24 @@ onAuthStateChanged(auth, (user) => {
     if (user) {
         appState.adminUser = user;
         appState.isAdmin = true;
+        updateAdminButton();
     } else {
         appState.adminUser = null;
         appState.isAdmin = false;
+        updateAdminButton();
     }
 });
+
+function updateAdminButton() {
+    const btn = document.getElementById('btn-admin-login');
+    const txt = document.getElementById('btn-admin-text');
+    if (!btn || !txt) return;
+    if (appState.isAdmin) {
+        txt.textContent = 'Painel';
+    } else {
+        txt.textContent = 'Login';
+    }
+}
 
 // =====================================================
 // NAVIGATION SYSTEM
@@ -548,6 +563,27 @@ function updateFilter(key, val) {
     renderPage();
 }
 
+// Tenta obter metadados básicos de preço/avaliacao a partir do link do afiliado (melhor esforço)
+async function fetchAffiliateMetadata(url) {
+    if (!url || url === '#') return {};
+    try {
+        const res = await fetch(url, { mode: 'cors' });
+        const text = await res.text();
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        // tenta pegar meta og:price:amount ou itemprop
+        const metaPrice = doc.querySelector('meta[property="og:price:amount"]')?.getAttribute('content')
+            || doc.querySelector('meta[name="price"]')?.getAttribute('content')
+            || doc.querySelector('[itemprop="price"]')?.getAttribute('content');
+        const metaRating = doc.querySelector('meta[property="og:rating"]')?.getAttribute('content')
+            || doc.querySelector('[itemprop="ratingValue"]')?.getAttribute('content');
+        return { price: metaPrice, rating: metaRating };
+    } catch (e) {
+        // CORS ou bloqueio comum — retornamos vazio
+        console.warn('fetchAffiliateMetadata failed:', e);
+        return {};
+    }
+}
+
 function renderProductCards(products) {
     if (!products.length) return `<div class="col-span-full text-center text-gray-500 py-10">Nenhum produto encontrado.</div>`;
     return products.map((p, i) => `
@@ -734,7 +770,7 @@ function openProductModal(productId = null) {
                 <h3 class="text-2xl md:text-3xl font-bold text-secondary">
                     ${product ? '✏️ Editar' : '➕ Novo'} Produto
                 </h3>
-                <button onclick="document.getElementById('product-modal').classList.remove('active')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                <button onclick="document.getElementById('product-modal').classList.remove('active')" class="modal-close" aria-label="Fechar">&times;</button>
             </div>
 
             <form id="admin-product-form" onsubmit="handleProductSubmit(event, '${productId || ''}')" class="space-y-6">
@@ -895,6 +931,15 @@ async function handleProductSubmit(event, id) {
     };
 
     try {
+        // tentativa de preencher preço/avaliação a partir do link (melhor esforço)
+        try {
+            const meta = await fetchAffiliateMetadata(productData.affiliateUrl);
+            if (meta.price && (!productData.price || productData.price === 0)) productData.price = parseFloat(meta.price) || productData.price;
+            if (meta.rating && (!productData.rating || productData.rating === 0)) productData.rating = parseFloat(meta.rating) || productData.rating;
+        } catch (metaErr) {
+            console.warn('Não foi possível obter metadados do link:', metaErr);
+        }
+
         if (id) {
             await updateDoc(doc(db, "products", id), productData);
             showToast('Produto atualizado!');
@@ -904,11 +949,16 @@ async function handleProductSubmit(event, id) {
             showToast('Produto criado!');
         }
         document.getElementById('product-modal').classList.remove('active');
-        await loadProducts(); // Reload local data
+        await loadProducts(); // Reload from Firestore
         renderAdminPanel();   // Re-render table
     } catch (e) {
-        console.error(e);
-        showToast('Erro ao salvar.', 'error');
+        console.error('Erro ao salvar no Firestore:', e);
+        // Fallback local para desenvolvimento
+        const fallback = { id: 'local-' + Date.now(), ...productData, createdAt: Date.now() };
+        appState.products.unshift(fallback);
+        document.getElementById('product-modal').classList.remove('active');
+        showToast('Falha ao salvar no Firestore — produto adicionado localmente.', 'info');
+        renderAdminPanel();
     }
 }
 
@@ -941,10 +991,12 @@ async function addTestProduct() {
         createdAt: serverTimestamp()
     };
 
+    let savedToFirestore = false;
     try {
         // tenta salvar no Firestore, se disponível
         if (typeof addDoc === 'function' && db) {
             await addDoc(collection(db, 'products'), sample);
+            savedToFirestore = true;
             showToast('Produto de teste salvo no Firestore.', 'success');
         } else {
             // fallback local (útil para desenvolvimento sem Firebase)
@@ -960,7 +1012,9 @@ async function addTestProduct() {
         showToast('Falha ao salvar no Firestore — produto adicionado localmente.', 'info');
     }
 
-    await loadProducts();
+    if (savedToFirestore) {
+        await loadProducts();
+    }
     renderAdminPanel();
 }
 
@@ -1069,6 +1123,9 @@ function renderFooterStores() {
     if (themeBtn) {
         themeBtn.addEventListener('click', toggleTheme);
     }
+
+    // Atualizar botão de admin/login conforme estado
+    updateAdminButton();
 
     // 2. Carregar Dados Iniciais
     await Promise.all([loadProducts(), loadCategories(), loadStores()]);
