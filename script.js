@@ -1,0 +1,924 @@
+// =====================================================
+// FIREBASE CONFIGURATION (MODULAR SDK)
+// =====================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getFirestore, collection, getDocs, doc, addDoc, updateDoc, deleteDoc, 
+    query, where, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCtvST8PPrvWpFazafqU1L9q8Vgg-sEH5M",
+  authDomain: "seleto-commerce.firebaseapp.com",
+  projectId: "seleto-commerce",
+  storageBucket: "seleto-commerce.firebasestorage.app",
+  messagingSenderId: "195667393422",
+  appId: "1:195667393422:web:f64e41552c3791c04702df"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// =====================================================
+// APP STATE & CONFIG
+// =====================================================
+const appState = {
+    currentPage: 'home',
+    products: [],
+    categories: [],
+    stores: [],
+    featuredProducts: [],
+    filters: {
+        category: '',
+        minPrice: 0,
+        maxPrice: 10000,
+        store: '',
+        rating: 0,
+        badge: ''
+    },
+    searchQuery: '',
+    currentProduct: null,
+    isAdmin: false,
+    adminUser: null,
+    carouselIndex: 0,
+    carouselInterval: null,
+    mobileMenuOpen: false,
+    filterSidebarOpen: false,
+    adminSection: 'dashboard',
+    darkMode: localStorage.getItem('darkMode') === 'true'
+};
+
+// Config de contato
+const siteConfig = {
+    siteName: 'Seleto',
+    contactEmail: 'contato@seletocommerce.com',
+    contactPhone: '(11) 99999-9999'
+};
+
+// =====================================================
+// UTILITY FUNCTIONS
+// =====================================================
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function toggleTheme() {
+    appState.darkMode = !appState.darkMode;
+    localStorage.setItem('darkMode', appState.darkMode);
+    applyTheme();
+    showToast(`Modo ${appState.darkMode ? 'escuro' : 'claro'} ativado`, 'info');
+}
+
+function applyTheme() {
+    const html = document.documentElement;
+    if (appState.darkMode) {
+        html.classList.add('dark');
+        document.body.style.background = '#1A1A2E';
+        document.body.style.color = '#F8F9FA';
+    } else {
+        html.classList.remove('dark');
+        document.body.style.background = '#F8F9FA';
+        document.body.style.color = '#2D3436';
+    }
+}
+
+function formatPrice(price) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+}
+
+function generateSlug(text) {
+    return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+}
+
+function getStoreColor(store) {
+    const colors = {
+        'Shopee': 'store-shopee',
+        'Amazon': 'store-amazon',
+        'TikTok Shop': 'store-tiktok',
+        'Magalu': 'store-magalu'
+    };
+    return colors[store] || 'bg-gray-600';
+}
+
+function getBadgeHtml(badge) {
+    const badges = {
+        'em_alta': { label: '🔥 Em Alta', class: 'badge-hot' },
+        'mais_vendido': { label: '⭐ Mais Vendido', class: 'badge-best' },
+        'custo_beneficio': { label: '💰 Custo-Benefício', class: 'badge-value' }
+    };
+    const b = badges[badge];
+    return b ? `<span class="${b.class} text-white text-xs font-semibold px-2 py-1 rounded-full">${b.label}</span>` : '';
+}
+
+function renderStars(rating) {
+    const fullStars = Math.floor(rating);
+    const hasHalf = rating % 1 >= 0.5;
+    let html = '';
+    for (let i = 0; i < 5; i++) {
+        if (i < fullStars) {
+            html += '<svg class="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>';
+        } else if (i === fullStars && hasHalf) {
+            html += '<svg class="w-4 h-4 text-yellow-400" viewBox="0 0 20 20"><defs><linearGradient id="half"><stop offset="50%" stop-color="currentColor"/><stop offset="50%" stop-color="#D1D5DB"/></defs><path fill="url(#half)" d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>';
+        } else {
+            html += '<svg class="w-4 h-4 text-gray-300 fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>';
+        }
+    }
+    return html;
+}
+
+// =====================================================
+// DATA FUNCTIONS
+// =====================================================
+async function loadProducts() {
+    try {
+        const q = query(collection(db, 'products'), where('active', '==', true));
+        const snapshot = await getDocs(q);
+        appState.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        appState.featuredProducts = appState.products.filter(p => 
+            p.badges && (p.badges.includes('em_alta') || p.badges.includes('mais_vendido'))
+        ).slice(0, 6);
+    } catch (error) {
+        console.error('Error loading products (Firebase):', error);
+        loadSampleData(); // Fallback
+    }
+}
+
+async function loadCategories() {
+    try {
+        const q = query(collection(db, 'categories'), where('active', '==', true));
+        const snapshot = await getDocs(q);
+        appState.categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('Error loading categories:', error);
+        appState.categories = [
+            { id: '1', name: 'Eletrônicos', slug: 'eletronicos', active: true },
+            { id: '2', name: 'Casa', slug: 'casa', active: true },
+            { id: '3', name: 'Moda', slug: 'moda', active: true }
+        ];
+    }
+}
+
+async function loadStores() {
+    try {
+        const q = query(collection(db, 'stores'), where('active', '==', true));
+        const snapshot = await getDocs(q);
+        appState.stores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('Error loading stores:', error);
+        appState.stores = [
+            { id: '1', name: 'Amazon', slug: 'amazon', logo: 'https://via.placeholder.com/120x40?text=Amazon', active: true },
+            { id: '2', name: 'Shopee', slug: 'shopee', logo: 'https://via.placeholder.com/120x40?text=Shopee', active: true },
+            { id: '3', name: 'Magalu', slug: 'magalu', logo: 'https://via.placeholder.com/120x40?text=Magalu', active: true }
+        ];
+    }
+}
+
+function loadSampleData() {
+    appState.products = [
+        {
+            id: '1',
+            title: 'Exemplo: iPhone 15 Pro',
+            slug: 'iphone-15-pro',
+            price: 5499.90,
+            store: 'Amazon',
+            affiliateUrl: '#',
+            images: ['https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400'],
+            category: 'eletronicos',
+            rating: 4.8,
+            badges: ['mais_vendido'],
+            description: 'Produto de exemplo. Adicione seus produtos no Admin.',
+            active: true
+        }
+    ];
+    appState.featuredProducts = appState.products;
+}
+
+// =====================================================
+// AUTHENTICATION & ADMIN
+// =====================================================
+async function handleGoogleLogin() {
+    try {
+        const result = await signInWithPopup(auth, provider);
+        if (result.user) {
+            appState.adminUser = result.user;
+            appState.isAdmin = true;
+            showToast('Login realizado!', 'success');
+            navigateTo('admin-dashboard');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showToast(`Erro no login: ${error.message}`, 'error');
+    }
+}
+
+function handleLogout() {
+    signOut(auth).then(() => {
+        appState.isAdmin = false;
+        appState.adminUser = null;
+        showToast('Logout realizado.', 'info');
+        navigateTo('home');
+    });
+}
+
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        appState.adminUser = user;
+        appState.isAdmin = true;
+    } else {
+        appState.adminUser = null;
+        appState.isAdmin = false;
+    }
+});
+
+// =====================================================
+// NAVIGATION SYSTEM
+// =====================================================
+function navigateTo(page, params = {}) {
+    appState.currentPage = page;
+    if (page !== 'home' && appState.carouselInterval) {
+        clearInterval(appState.carouselInterval);
+        appState.carouselInterval = null;
+    }
+    renderPage();
+    window.scrollTo(0, 0);
+}
+
+function renderPage() {
+    const container = document.getElementById('page-container');
+    const mainApp = document.getElementById('main-app');
+    const adminPanel = document.getElementById('admin-panel');
+
+    // Admin handling
+    if (appState.currentPage.startsWith('admin')) {
+        mainApp.classList.add('hidden');
+        adminPanel.classList.remove('hidden');
+        renderAdminPanel();
+        return;
+    }
+
+    // Standard User Handling
+    mainApp.classList.remove('hidden');
+    adminPanel.classList.add('hidden');
+
+    switch (appState.currentPage) {
+        case 'home': renderHomePage(container); break;
+        case 'category': renderCategoryPage(container); break;
+        case 'product': renderProductPage(container); break;
+        case 'search': renderSearchPage(container); break;
+        case 'about': renderAboutPage(container); break;
+        case 'terms': renderTermsPage(container); break;
+        default: renderHomePage(container);
+    }
+}
+
+// =====================================================
+// PAGE RENDERERS
+// =====================================================
+
+// 1. HOME PAGE
+function renderHomePage(container) {
+    container.innerHTML = `
+        <section class="hero-gradient text-white py-16 md:py-24">
+          <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
+             <div class="fade-in">
+                <h1 class="text-3xl md:text-5xl font-bold mb-4 leading-tight">Melhores Ofertas do Dia</h1>
+                <p class="text-lg text-gray-300 mb-8">Selecionamos os melhores produtos com preços imbatíveis.</p>
+                <div class="flex gap-4">
+                  <button onclick="document.getElementById('produtos-destaque').scrollIntoView({behavior: 'smooth'})" class="bg-primary hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-semibold transition-all pulse-btn">Ver Ofertas</button>
+                </div>
+             </div>
+             <div class="carousel-container rounded-2xl overflow-hidden shadow-2xl">
+                <div id="featured-carousel" class="carousel-track">
+                  ${renderCarouselSlides()}
+                </div>
+             </div>
+          </div>
+        </section>
+
+        <section id="produtos-destaque" class="py-12 bg-white">
+          <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-2xl font-bold mb-6">🔥 Em Alta</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              ${renderProductCards(appState.products.filter(p => p.badges?.includes('em_alta')).slice(0, 4))}
+            </div>
+          </div>
+        </section>
+        
+        <section class="py-12">
+          <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-2xl font-bold mb-6">📦 Todos os Produtos</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              ${renderProductCards(appState.products)}
+            </div>
+          </div>
+        </section>
+    `;
+    startCarousel();
+}
+
+function renderCarouselSlides() {
+    const slides = appState.featuredProducts.slice(0, 4);
+    if (!slides.length) return `<div class="p-12 text-center text-white bg-secondary fade-in">Nenhum destaque ainda.</div>`;
+    
+    return slides.map((product, i) => `
+        <div class="carousel-slide relative min-h-[300px] cursor-pointer fade-in" onclick="viewProduct('${product.slug}')" style="animation-delay: ${i * 0.15}s">
+          <img src="${product.images?.[0]}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/600x400'">
+          <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+             <h3 class="text-xl font-bold text-white">${product.title}</h3>
+             <p class="text-primary font-bold text-2xl">${formatPrice(product.price)}</p>
+          </div>
+        </div>
+    `).join('');
+}
+
+function startCarousel() {
+    if (appState.carouselInterval) clearInterval(appState.carouselInterval);
+    appState.carouselIndex = 0;
+    appState.carouselInterval = setInterval(() => {
+        appState.carouselIndex = (appState.carouselIndex + 1) % Math.max(1, appState.featuredProducts.slice(0,4).length);
+        const track = document.getElementById('featured-carousel');
+        if(track) track.style.transform = `translateX(-${appState.carouselIndex * 100}%)`;
+    }, 4000);
+}
+
+// 2. PRODUCT PAGE
+function renderProductPage(container) {
+    const product = appState.currentProduct;
+    if (!product) return navigateTo('home');
+
+    container.innerHTML = `
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <button onclick="navigateTo('home')" class="mb-4 text-gray-500 hover:text-primary">← Voltar</button>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-white rounded-2xl overflow-hidden shadow-lg aspect-square relative">
+                    <img src="${product.images?.[0]}" class="w-full h-full object-cover">
+                    ${product.badges?.[0] ? `<div class="absolute top-4 left-4">${getBadgeHtml(product.badges[0])}</div>` : ''}
+                </div>
+                <div>
+                    <span class="${getStoreColor(product.store)} text-white px-3 py-1 rounded-full text-sm font-semibold">${product.store}</span>
+                    <h1 class="text-3xl font-bold mt-4 mb-2 text-secondary">${product.title}</h1>
+                    <div class="flex items-center gap-2 mb-6">
+                        ${renderStars(product.rating || 0)} <span class="text-gray-500">(${product.rating})</span>
+                    </div>
+                    <div class="text-4xl font-bold text-primary mb-6">${formatPrice(product.price)}</div>
+                    <p class="text-gray-600 mb-8 leading-relaxed">${product.description || 'Sem descrição.'}</p>
+                    
+                    <a href="${product.affiliateUrl}" target="_blank" rel="noopener noreferrer" 
+                       class="block w-full bg-primary hover:bg-orange-600 text-white text-center py-4 rounded-xl font-bold text-lg transition-all pulse-btn shadow-lg shadow-orange-500/30">
+                       Comprar na ${product.store} ↗
+                    </a>
+                    <p class="text-xs text-center text-gray-400 mt-2">Você será redirecionado para o site seguro da loja.</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 3. SEARCH & CATEGORY PAGE
+function renderSearchPage(container) {
+    let results = appState.products.filter(p => {
+        const matchQuery = !appState.searchQuery || p.title.toLowerCase().includes(appState.searchQuery.toLowerCase());
+        const matchCat = !appState.filters.category || p.category === appState.filters.category;
+        const matchStore = !appState.filters.store || p.store === appState.filters.store;
+        return matchQuery && matchCat && matchStore;
+    });
+
+    // Dummy render for category page re-use
+    renderCategoryPage(container, results);
+}
+
+function renderCategoryPage(container, resultsOverride = null) {
+    // Se não foi passado resultado (veio do clique em categoria), filtra aqui
+    let results = resultsOverride;
+    if (!results) {
+         results = appState.products.filter(p => !appState.filters.category || p.category === appState.filters.category);
+    }
+
+    container.innerHTML = `
+        <div class="max-w-7xl mx-auto px-4 py-8 fade-in">
+            <h1 class="text-2xl font-bold mb-6">
+                ${appState.searchQuery ? `Resultados para "${appState.searchQuery}"` : 'Produtos'}
+            </h1>
+            
+            <div class="flex gap-2 mb-8 overflow-x-auto pb-2">
+               ${[{ name: 'Todas', value: '' }, ...appState.stores].map(store => `
+                   <button onclick="updateFilter('store', '${store.value || ''}')" 
+                   class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${appState.filters.store === (store.value || '') ? 'bg-primary text-white' : 'bg-gray-200 hover:bg-gray-300'}">
+                   ${store.name || store.value}
+                   </button>
+               `).join('')}
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 fade-in" style="animation-delay: 0.1s">
+                ${renderProductCards(results)}
+            </div>
+        </div>
+    `;
+}
+
+function renderAboutPage(container) {
+    container.innerHTML = `
+        <div class="max-w-7xl mx-auto px-4 py-12 fade-in">
+            <div class="mb-12">
+                <h1 class="text-4xl font-bold text-primary mb-4">Sobre Seleto</h1>
+                <p class="text-gray-600 text-lg leading-relaxed">
+                    Seleto é um marketplace afiliado que reúne os melhores produtos selecionados das principais lojas 
+                    de comércio eletrônico do Brasil. Nossa missão é simplificar a busca por produtos de qualidade 
+                    oferecendo uma experiência de compra inteligente e personalizável.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 mb-12">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-bold text-secondary mb-3">🎯 Nossa Missão</h3>
+                    <p class="text-gray-600">Conectar consumidores aos melhores produtos com as melhores ofertas do mercado.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-bold text-secondary mb-3">💡 Nossa Visão</h3>
+                    <p class="text-gray-600">Ser o marketplace mais confiável e fácil de usar no Brasil.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-bold text-secondary mb-3">🤝 Valores</h3>
+                    <p class="text-gray-600">Transparência, qualidade e confiança em cada transação.</p>
+                </div>
+            </div>
+
+            <div class="bg-primary/10 p-8 rounded-xl mb-12">
+                <h2 class="text-2xl font-bold mb-4">Por que Escolher Seleto?</h2>
+                <ul class="space-y-3 text-gray-700">
+                    <li class="flex items-center gap-3"><span class="text-primary font-bold">✓</span> Produtos curados e selecionados</li>
+                    <li class="flex items-center gap-3"><span class="text-primary font-bold">✓</span> Melhores preços do mercado</li>
+                    <li class="flex items-center gap-3"><span class="text-primary font-bold">✓</span> Compra segura com as lojas confiáveis</li>
+                    <li class="flex items-center gap-3"><span class="text-primary font-bold">✓</span> Sistema de avaliações de usuários</li>
+                    <li class="flex items-center gap-3"><span class="text-primary font-bold">✓</span> Interface fácil e intuitiva</li>
+                </ul>
+            </div>
+
+            <button onclick="navigateTo('home')" class="bg-primary hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-bold transition-all">
+                ← Voltar à Home
+            </button>
+        </div>
+    `;
+}
+
+function renderTermsPage(container) {
+    container.innerHTML = `
+        <div class="max-w-4xl mx-auto px-4 py-12 fade-in">
+            <h1 class="text-4xl font-bold text-primary mb-8">Termos de Uso</h1>
+            
+            <div class="prose prose-lg max-w-none space-y-6">
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">1. Aceitação dos Termos</h2>
+                    <p class="text-gray-700">
+                        Ao acessar e usar o Seleto Commerce, você concorda em estar vinculado por estes termos e condições. 
+                        Se você não concordar com qualquer parte destes termos, você não poderá usar o serviço.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">2. Uso do Serviço</h2>
+                    <p class="text-gray-700">
+                        O Seleto é um marketplace afiliado que funciona como intermediário entre você e as lojas parceiras. 
+                        Quando você clica em um produto, você é redirecionado para o site do vendedor afiliado.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">3. Comissões de Afiliado</h2>
+                    <p class="text-gray-700">
+                        O Seleto ganha comissões dos parceiros quando você realiza uma compra através de nossos links. 
+                        Isso não afeta o preço final do produto para você.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">4. Responsabilidade</h2>
+                    <p class="text-gray-700">
+                        O Seleto não é responsável por:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                        <li>Qualidade dos produtos vendidos</li>
+                        <li>Entrega e prazos</li>
+                        <li>Devoluções e reembolsos</li>
+                        <li>Atendimento ao cliente</li>
+                    </ul>
+                    <p class="text-gray-700 mt-3">
+                        Essas responsabilidades são exclusivas das lojas parceiras.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">5. Modificações</h2>
+                    <p class="text-gray-700">
+                        O Seleto se reserva o direito de modificar estes termos a qualquer momento. 
+                        Mudanças significativas serão notificadas aos usuários.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 class="text-2xl font-bold text-secondary mb-3">6. Contato</h2>
+                    <p class="text-gray-700">
+                        Para dúvidas sobre estes termos, entre em contato conosco em:
+                        <br/><strong>${siteConfig.contactEmail}</strong>
+                    </p>
+                </section>
+            </div>
+
+            <button onclick="navigateTo('home')" class="mt-8 bg-primary hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-bold transition-all">
+                ← Voltar à Home
+            </button>
+        </div>
+    `;
+}
+
+function updateFilter(key, val) {
+    appState.filters[key] = val;
+    renderPage();
+}
+
+function renderProductCards(products) {
+    if (!products.length) return `<div class="col-span-full text-center text-gray-500 py-10">Nenhum produto encontrado.</div>`;
+    return products.map((p, i) => `
+        <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer border border-gray-100 fade-in" onclick="viewProduct('${p.slug}')" style="animation-delay: ${i * 0.05}s">
+            <div class="relative aspect-square">
+                <img src="${p.images?.[0]}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://via.placeholder.com/400'">
+                <div class="absolute top-2 right-2">
+                    <span class="${getStoreColor(p.store)} text-white text-[10px] font-bold px-2 py-1 rounded-full">${p.store}</span>
+                </div>
+            </div>
+            <div class="p-4">
+                <h3 class="font-medium text-secondary line-clamp-2 text-sm h-10 mb-2">${p.title}</h3>
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-primary">${formatPrice(p.price)}</span>
+                    <div class="flex text-yellow-400 text-xs gap-0.5">★ ${p.rating || 0}</div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function viewProduct(slug) {
+    appState.currentProduct = appState.products.find(p => p.slug === slug);
+    navigateTo('product');
+}
+
+// =====================================================
+// ADMIN PANEL RENDERER
+// =====================================================
+function renderAdminPanel() {
+    const panel = document.getElementById('admin-panel');
+    
+    // Login Screen
+    if (!appState.isAdmin) {
+        panel.innerHTML = `
+            <div class="h-screen flex items-center justify-center bg-gray-100">
+                <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
+                    <h2 class="text-2xl font-bold mb-6">Admin Login</h2>
+                    <button onclick="handleGoogleLogin()" class="w-full bg-white border-2 border-gray-200 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all font-semibold text-gray-700">
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-6 h-6"> Entrar com Google
+                    </button>
+                    <button onclick="navigateTo('home')" class="mt-6 text-gray-400 text-sm hover:text-primary">Voltar ao site</button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Admin Dashboard
+    panel.innerHTML = `
+        <div class="flex h-screen bg-gray-100">
+            <aside class="w-64 bg-secondary text-white flex-shrink-0">
+                <div class="p-6 font-bold text-xl border-b border-gray-700">Painel Admin</div>
+                <nav class="p-4 space-y-2">
+                    <button onclick="appState.adminSection='products'; renderAdminPanel()" class="w-full text-left px-4 py-3 rounded hover:bg-white/10 ${appState.adminSection === 'products' ? 'bg-primary text-white' : ''}">Produtos</button>
+                    <button onclick="navigateTo('home')" class="w-full text-left px-4 py-3 rounded hover:bg-white/10 text-gray-400">Ver Site</button>
+                    <button onclick="handleLogout()" class="w-full text-left px-4 py-3 rounded hover:bg-red-500/20 text-red-300">Sair</button>
+                </nav>
+            </aside>
+            
+            <main class="flex-1 overflow-auto p-8">
+                ${renderAdminContent()}
+            </main>
+        </div>
+        
+        <div id="product-modal" class="modal-backdrop"></div>
+    `;
+}
+
+function renderAdminContent() {
+    if (appState.adminSection === 'products') return renderAdminProducts();
+    return '';
+}
+
+function renderAdminProducts() {
+    return `
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-2xl font-bold text-secondary">Gerenciar Produtos</h2>
+            <button onclick="openProductModal()" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors">+ Novo Produto</button>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="p-4">Produto</th>
+                        <th class="p-4">Loja</th>
+                        <th class="p-4">Link Afiliado</th>
+                        <th class="p-4">Preço</th>
+                        <th class="p-4 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${appState.products.map(p => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-4">
+                                <div class="font-medium">${p.title}</div>
+                                <div class="text-xs text-gray-500">${p.category}</div>
+                            </td>
+                            <td class="p-4"><span class="px-2 py-1 text-xs rounded bg-gray-200">${p.store}</span></td>
+                            <td class="p-4 max-w-xs truncate text-gray-400 text-sm">${p.affiliateUrl}</td>
+                            <td class="p-4 font-bold text-primary">${formatPrice(p.price)}</td>
+                            <td class="p-4 text-right space-x-2">
+                                <button onclick="editProduct('${p.id}')" class="text-blue-500 hover:underline">Editar</button>
+                                <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:underline">Excluir</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// =====================================================
+// ADMIN CRUD OPERATIONS
+// =====================================================
+function openProductModal(productId = null) {
+    const product = productId ? appState.products.find(p => p.id === productId) : null;
+    const modal = document.getElementById('product-modal');
+    
+    modal.innerHTML = `
+        <div class="modal-content p-6">
+            <h3 class="text-xl font-bold mb-4">${product ? 'Editar' : 'Novo'} Produto</h3>
+            <form id="admin-product-form" onsubmit="handleProductSubmit(event, '${productId || ''}')" class="space-y-4">
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Nome do Produto</label>
+                    <input type="text" name="title" value="${product?.title || ''}" required class="w-full border rounded-lg p-2">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Preço (R$)</label>
+                        <input type="number" step="0.01" name="price" value="${product?.price || ''}" required class="w-full border rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Avaliação (0-5)</label>
+                        <input type="number" step="0.1" max="5" name="rating" value="${product?.rating || 4.5}" class="w-full border rounded-lg p-2">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Loja Vendedora</label>
+                        <select name="store" class="w-full border rounded-lg p-2">
+                            <option value="Amazon" ${product?.store === 'Amazon' ? 'selected' : ''}>Amazon</option>
+                            <option value="Shopee" ${product?.store === 'Shopee' ? 'selected' : ''}>Shopee</option>
+                            <option value="TikTok Shop" ${product?.store === 'TikTok Shop' ? 'selected' : ''}>TikTok Shop</option>
+                            <option value="Magalu" ${product?.store === 'Magalu' ? 'selected' : ''}>Magalu</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Categoria</label>
+                        <select name="category" class="w-full border rounded-lg p-2">
+                            ${appState.categories.map(c => `<option value="${c.slug}" ${product?.category === c.slug ? 'selected' : ''}>${c.name}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-primary mb-1">Link de Afiliado (URL Completa)</label>
+                    <input type="url" name="affiliateUrl" value="${product?.affiliateUrl || ''}" placeholder="https://..." required class="w-full border-2 border-primary/20 rounded-lg p-2 focus:border-primary">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">URL da Imagem</label>
+                    <input type="url" name="image" value="${product?.images?.[0] || ''}" placeholder="https://..." class="w-full border rounded-lg p-2">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">Descrição</label>
+                    <textarea name="description" rows="3" class="w-full border rounded-lg p-2">${product?.description || ''}</textarea>
+                </div>
+
+                <div class="flex gap-4 border-t pt-4">
+                     <label class="flex items-center gap-2">
+                        <input type="checkbox" name="badge_em_alta" ${product?.badges?.includes('em_alta') ? 'checked' : ''}>
+                        <span class="text-sm">🔥 Em Alta</span>
+                     </label>
+                     <label class="flex items-center gap-2">
+                        <input type="checkbox" name="badge_mais_vendido" ${product?.badges?.includes('mais_vendido') ? 'checked' : ''}>
+                        <span class="text-sm">⭐ Mais Vendido</span>
+                     </label>
+                </div>
+
+                <div class="flex gap-3 mt-6 pt-4 border-t">
+                    <button type="button" onclick="document.getElementById('product-modal').classList.remove('active')" class="flex-1 py-2 border rounded-lg">Cancelar</button>
+                    <button type="submit" class="flex-1 py-2 bg-primary text-white rounded-lg font-bold hover:bg-orange-600">Salvar Produto</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    modal.classList.add('active');
+}
+
+function editProduct(id) {
+    openProductModal(id);
+}
+
+async function handleProductSubmit(event, id) {
+    event.preventDefault();
+    const form = event.target;
+    
+    const badges = [];
+    if(form.badge_em_alta.checked) badges.push('em_alta');
+    if(form.badge_mais_vendido.checked) badges.push('mais_vendido');
+
+    const productData = {
+        title: form.title.value,
+        slug: generateSlug(form.title.value),
+        price: parseFloat(form.price.value),
+        store: form.store.value,
+        category: form.category.value,
+        rating: parseFloat(form.rating.value),
+        affiliateUrl: form.affiliateUrl.value,
+        images: [form.image.value],
+        description: form.description.value,
+        badges: badges,
+        active: true,
+        updatedAt: serverTimestamp()
+    };
+
+    try {
+        if (id) {
+            await updateDoc(doc(db, "products", id), productData);
+            showToast('Produto atualizado!');
+        } else {
+            productData.createdAt = serverTimestamp();
+            await addDoc(collection(db, "products"), productData);
+            showToast('Produto criado!');
+        }
+        document.getElementById('product-modal').classList.remove('active');
+        await loadProducts(); // Reload local data
+        renderAdminPanel();   // Re-render table
+    } catch (e) {
+        console.error(e);
+        showToast('Erro ao salvar.', 'error');
+    }
+}
+
+async function deleteProduct(id) {
+    if(!confirm("Tem certeza que deseja excluir?")) return;
+    try {
+        await deleteDoc(doc(db, "products", id));
+        showToast('Produto excluído.');
+        await loadProducts();
+        renderAdminPanel();
+    } catch (e) {
+        showToast('Erro ao excluir.', 'error');
+    }
+}
+
+// =====================================================
+// GLOBAL BINDINGS (Obrigatório para type="module")
+// =====================================================
+window.handleGoogleLogin = handleGoogleLogin;
+window.handleLogout = handleLogout;
+window.navigateTo = navigateTo;
+window.viewProduct = viewProduct;
+window.updateFilter = updateFilter;
+
+// Funções do Admin
+window.openProductModal = openProductModal;
+window.editProduct = editProduct;
+window.deleteProduct = deleteProduct;
+window.handleProductSubmit = handleProductSubmit;
+
+// =====================================================
+// RENDERIZAÇÃO DE CATEGORIAS
+// =====================================================
+function renderCategoriesNav() {
+    const nav = document.getElementById('categories-nav');
+    if(!nav) return;
+    
+    let html = `
+        <button onclick="window.updateFilter('category', ''); window.navigateTo('search')" 
+        class="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium border border-transparent transition-all ${appState.filters.category === '' && appState.currentPage === 'search' ? 'bg-primary text-white' : 'hover:bg-gray-100 text-gray-600'}">
+        Todas
+        </button>
+    `;
+
+    html += appState.categories.map(c => 
+        `<button onclick="window.updateFilter('category', '${c.slug}'); window.navigateTo('search')" 
+         class="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium border border-transparent transition-all ${appState.filters.category === c.slug && appState.currentPage === 'search' ? 'bg-primary text-white' : 'hover:bg-gray-100 text-gray-600'}">
+         ${c.name}
+         </button>`
+    ).join('');
+
+    nav.innerHTML = html;
+}
+
+function renderFooterStores() {
+    const footerStores = document.getElementById('footer-stores');
+    if (!footerStores) return;
+
+    let html = appState.stores.map(store => `
+        <div class="text-center">
+            <div class="bg-white p-3 rounded-lg mb-2 h-16 flex items-center justify-center">
+                <img src="${store.logo}" alt="${store.name}" class="max-h-12 max-w-32 object-contain" onerror="this.src='https://via.placeholder.com/120x40?text=${store.name}'">
+            </div>
+            <p class="text-xs text-gray-400">${store.name}</p>
+        </div>
+    `).join('');
+
+    footerStores.innerHTML = html || '<p class="text-gray-400">Nenhuma loja parceira no momento</p>';
+}
+
+// =====================================================
+// INITIALIZATION
+// =====================================================
+(async function init() {
+    console.log("Iniciando Seleto Commerce...");
+
+    // Aplicar tema salvo
+    applyTheme();
+
+    // 1. Configurar Listeners da Interface
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', (e) => {
+            if(e.key === 'Enter') {
+                appState.searchQuery = e.target.value;
+                navigateTo('search');
+            }
+        });
+    }
+    
+    const mobileSearch = document.getElementById('mobile-search-input');
+    if (mobileSearch) {
+         mobileSearch.addEventListener('keyup', (e) => {
+            if(e.key === 'Enter') {
+                appState.searchQuery = e.target.value;
+                navigateTo('search');
+            }
+        });
+    }
+
+    document.getElementById('nav-logo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo('home');
+    });
+
+    document.getElementById('btn-admin-login')?.addEventListener('click', () => {
+        navigateTo('admin-dashboard'); 
+    });
+    
+    // Mobile Menu Button
+    document.getElementById('btn-mobile-menu')?.addEventListener('click', () => {
+        showToast('Menu Mobile em desenvolvimento', 'info');
+    });
+
+    // Botão de tema (se existir)
+    const themeBtn = document.getElementById('btn-theme');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', toggleTheme);
+    }
+
+    // 2. Carregar Dados Iniciais
+    await Promise.all([loadProducts(), loadCategories(), loadStores()]);
+    
+    // 3. Remover Tela de Carregamento
+    const loadingScreen = document.getElementById('loading-screen');
+    if(loadingScreen) {
+        loadingScreen.style.opacity = '0';
+        setTimeout(() => loadingScreen.classList.add('hidden'), 500);
+    }
+    
+    // 4. Renderizar Estado Inicial
+    renderCategoriesNav();
+    renderFooterStores();
+    renderPage();
+    
+    console.log("Aplicação carregada com sucesso.");
+})();
