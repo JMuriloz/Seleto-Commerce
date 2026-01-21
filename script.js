@@ -1277,4 +1277,5 @@ function renderFooterStores() {
     renderPage();
     
     console.log("Aplicação carregada com sucesso.");
+
 })();
