@@ -147,8 +147,13 @@ async function loadProducts() {
         appState.featuredProducts = appState.products.filter(p => 
             p.badges && (p.badges.includes('em_alta') || p.badges.includes('mais_vendido'))
         ).slice(0, 6);
+        console.log('✅ Produtos carregados do Firestore:', appState.products.length);
     } catch (error) {
-        console.error('Error loading products (Firebase):', error);
+        console.error('❌ Erro ao carregar produtos:', {
+            code: error.code,
+            message: error.message,
+            fullError: error
+        });
         loadSampleData(); // Fallback
     }
 }
@@ -208,16 +213,26 @@ function loadSampleData() {
 // =====================================================
 async function handleGoogleLogin() {
     try {
+        console.log('🔐 Iniciando login com Google...');
         const result = await signInWithPopup(auth, provider);
         if (result.user) {
             appState.adminUser = result.user;
             appState.isAdmin = true;
+            console.log('✅ Login bem-sucedido!', {
+                uid: result.user.uid,
+                email: result.user.email,
+                displayName: result.user.displayName
+            });
             showToast('Login realizado!', 'success');
             updateAdminButton();
             navigateTo('admin-dashboard');
         }
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('❌ Erro no login:', {
+            code: error.code,
+            message: error.message,
+            fullError: error
+        });
         showToast(`Erro no login: ${error.message}`, 'error');
     }
 }
@@ -226,9 +241,12 @@ function handleLogout() {
     signOut(auth).then(() => {
         appState.isAdmin = false;
         appState.adminUser = null;
+        console.log('✅ Logout realizado.');
         showToast('Logout realizado.', 'info');
         updateAdminButton();
         navigateTo('home');
+    }).catch(err => {
+        console.error('❌ Erro no logout:', err);
     });
 }
 
@@ -236,10 +254,16 @@ onAuthStateChanged(auth, (user) => {
     if (user) {
         appState.adminUser = user;
         appState.isAdmin = true;
+        console.log('🔐 Autenticação detectada:', {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName
+        });
         updateAdminButton();
     } else {
         appState.adminUser = null;
         appState.isAdmin = false;
+        console.log('🔐 Usuário desautenticado.');
         updateAdminButton();
     }
 });
@@ -250,8 +274,10 @@ function updateAdminButton() {
     if (!btn || !txt) return;
     if (appState.isAdmin) {
         txt.textContent = 'Painel';
+        console.log('🟢 Botão atualizado: "Painel" (usuário autenticado)');
     } else {
         txt.textContent = 'Login';
+        console.log('🔴 Botão atualizado: "Login" (usuário não autenticado)');
     }
 }
 
@@ -909,6 +935,14 @@ function editProduct(id) {
 
 async function handleProductSubmit(event, id) {
     event.preventDefault();
+    
+    // Verificar se usuário está autenticado
+    if (!appState.adminUser) {
+        showToast('❌ Você deve estar autenticado para salvar produtos.', 'error');
+        console.warn('Tentativa de salvar sem autenticação');
+        return;
+    }
+    
     const form = event.target;
     
     const badges = [];
@@ -927,6 +961,7 @@ async function handleProductSubmit(event, id) {
         description: form.description.value,
         badges: badges,
         active: true,
+        createdBy: appState.adminUser.uid,
         updatedAt: serverTimestamp()
     };
 
@@ -942,22 +977,29 @@ async function handleProductSubmit(event, id) {
 
         if (id) {
             await updateDoc(doc(db, "products", id), productData);
+            console.log('✅ Produto atualizado no Firestore:', id);
             showToast('Produto atualizado!');
         } else {
             productData.createdAt = serverTimestamp();
-            await addDoc(collection(db, "products"), productData);
+            const docRef = await addDoc(collection(db, "products"), productData);
+            console.log('✅ Produto criado no Firestore:', docRef.id);
             showToast('Produto criado!');
         }
         document.getElementById('product-modal').classList.remove('active');
         await loadProducts(); // Reload from Firestore
         renderAdminPanel();   // Re-render table
     } catch (e) {
-        console.error('Erro ao salvar no Firestore:', e);
+        console.error('❌ Erro ao salvar no Firestore:', {
+            code: e.code,
+            message: e.message,
+            userUid: appState.adminUser?.uid,
+            fullError: e
+        });
         // Fallback local para desenvolvimento
-        const fallback = { id: 'local-' + Date.now(), ...productData, createdAt: Date.now() };
+        const fallback = { id: 'local-' + Date.now(), ...productData, createdAt: Date.now(), createdBy: appState.adminUser.uid };
         appState.products.unshift(fallback);
         document.getElementById('product-modal').classList.remove('active');
-        showToast('Falha ao salvar no Firestore — produto adicionado localmente.', 'info');
+        showToast('❌ Falha ao salvar no Firestore — produto adicionado localmente.', 'error');
         renderAdminPanel();
     }
 }
@@ -976,6 +1018,14 @@ async function deleteProduct(id) {
 
 // Adiciona um produto de teste (útil para validar o fluxo do admin sem preencher o formulário)
 async function addTestProduct() {
+    if (!appState.adminUser) {
+        showToast('❌ Você deve estar autenticado.', 'error');
+        console.warn('Tentativa de adicionar produto de teste sem autenticação');
+        console.log('Admin user:', appState.adminUser);
+        console.log('Is admin:', appState.isAdmin);
+        return;
+    }
+    
     const sample = {
         title: 'Produto de Teste - Inserido Rápido',
         slug: generateSlug('Produto de Teste - Inserido Rápido'),
@@ -988,28 +1038,34 @@ async function addTestProduct() {
         description: 'Produto criado automaticamente para testes via painel admin.',
         badges: [],
         active: true,
+        createdBy: appState.adminUser.uid,
         createdAt: serverTimestamp()
     };
 
     let savedToFirestore = false;
     try {
-        // tenta salvar no Firestore, se disponível
-        if (typeof addDoc === 'function' && db) {
-            await addDoc(collection(db, 'products'), sample);
-            savedToFirestore = true;
-            showToast('Produto de teste salvo no Firestore.', 'success');
-        } else {
-            // fallback local (útil para desenvolvimento sem Firebase)
-            sample.id = 'local-' + Date.now();
-            appState.products.unshift(sample);
-            showToast('Produto de teste adicionado localmente.', 'success');
-        }
+        console.log('📤 Tentando salvar produto de teste no Firestore...', {
+            userUid: appState.adminUser?.uid,
+            isAdmin: appState.isAdmin
+        });
+        
+        const docRef = await addDoc(collection(db, 'products'), sample);
+        savedToFirestore = true;
+        console.log('✅ Produto de teste criado no Firestore:', docRef.id);
+        showToast('✅ Produto de teste salvo no Firestore!', 'success');
     } catch (err) {
-        console.error('Erro ao adicionar produto de teste:', err);
+        console.error('❌ Erro ao salvar produto de teste:', {
+            code: err.code,
+            message: err.message,
+            userUid: appState.adminUser?.uid,
+            isAdmin: appState.isAdmin,
+            fullError: err
+        });
         // fallback local
         sample.id = 'local-' + Date.now();
+        sample.createdAt = Date.now();
         appState.products.unshift(sample);
-        showToast('Falha ao salvar no Firestore — produto adicionado localmente.', 'info');
+        showToast('❌ Falha ao salvar — adicionado localmente.', 'error');
     }
 
     if (savedToFirestore) {

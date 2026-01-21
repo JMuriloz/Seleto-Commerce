@@ -1,0 +1,123 @@
+# ⚡ Instruções Rápidas (TL;DR)
+
+## 📌 O que foi feito
+
+✅ **Logs detalhados adicionados** — Console agora mostra exatamente onde o erro está
+✅ **Verificação de autenticação** — App verifica se você está logado antes de salvar
+✅ **Rastreamento de UID** — Seu ID de usuário é capturado e exibido no console
+
+---
+
+## 🚀 Faça AGORA (5 minutos)
+
+### 1️⃣ Habilitar Google Auth no Firebase Console
+
+```
+https://console.firebase.google.com/
+  → Selecione "seleto-commerce"
+  → Authentication → Sign-in method
+  → Ative "Google"
+  → Save
+```
+
+### 2️⃣ Fazer Login no App e Copiar UID
+
+1. Abra seu app
+2. Clique em **"Login"** → Google
+3. Abra **Console** do navegador (F12 ou Ctrl+Shift+J)
+4. Procure:
+   ```
+   🔐 Autenticação detectada: {uid: "abc123...", email: "..."}
+   ```
+5. **Copie o `uid`** (ex: `abc123xyz`)
+
+### 3️⃣ Criar Admin no Firestore
+
+```
+Firestore Console
+  → Collections
+  → + Start collection
+  → Nome: "admins"
+  → ID do documento: Cole seu UID (abc123xyz)
+  → Campo "role" com valor "admin"
+  → Save
+```
+
+### 4️⃣ Copiar e Colar as Regras de Segurança
+
+```
+Firestore Console
+  → Rules
+  → Delete tudo
+  → Cole o código abaixo:
+```
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    match /admins/{adminId} {
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow create, update, delete: if false;
+    }
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /stores/{storeId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
+```
+
+→ **Publish**
+
+### 5️⃣ Testar
+
+1. Recarregue o app (F5)
+2. Botão deve dizer **"Login"** → Clique
+3. Faça login com Google
+4. Botão deve mudar para **"Painel"** ✅
+5. Clique em **"Painel"** → **"Novo Produto"** ou **"🧪 Produto de Teste"**
+6. Se salvar com sucesso, verá no Console:
+   ```
+   ✅ Produto de teste criado no Firestore: ...
+   ```
+
+---
+
+## 🐛 Se der erro
+
+**Erro: "❌ Falha ao salvar no Firestore"**
+
+1. Abra Console (F12)
+2. Procure `❌ Erro ao salvar produto de teste:`
+3. Cole a mensagem de erro aqui (copie o objeto inteiro)
+4. Possíveis causas:
+   - `permission-denied` → Admin não existe em `admins/{uid}`
+   - `unauthenticated` → Não está logado (refaça login)
+   - Outro erro → Envie a mensagem exata
+
+---
+
+## 📞 Próxima Etapa
+
+Após conseguir adicionar um produto com sucesso:
+- ✅ Teste editar produto
+- ✅ Teste deletar produto
+- ✅ Verifique se aparece na página inicial
+- ✅ Teste modo escuro (tema)
+
+Pronto! 🎉
