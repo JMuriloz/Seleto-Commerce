@@ -915,10 +915,7 @@ function openProductModal(productId = null) {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Categoria *</label>
-                            <select name="category" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
-                                <option value="">Selecione uma categoria</option>
-                                ${appState.categories.map(c => `<option value="${c.slug}" ${product?.category === c.slug ? 'selected' : ''}>${c.name}</option>`).join('')}
-                            </select>
+                            <input type="text" name="category" value="${product?.category || ''}" placeholder="Ex: Eletrônicos, Moda, Casa" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Loja Vendedora *</label>
