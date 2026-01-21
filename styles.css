@@ -521,18 +521,20 @@ html.dark .caret {
 .modal-content {
   background: white; 
   border-radius: 16px; 
-  
-  /* ALTERADO DE 700px PARA 550px PARA FICAR MAIS COMPACTO */
-  max-width: 550px; 
-  
-  width: 95%; /* Ajuste para não colar nas bordas em celulares */
-  max-height: 90vh; /* Diminui um pouco a altura máxima */
+  max-width: 700px; 
+  width: 100%;
+  max-height: 95vh;
   overflow-y: auto; 
   transform: scale(0.95) translateY(-50px); 
   transition: all 0.3s ease-out;
   animation: slideUp 0.3s ease-out forwards;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
+
+.modal-content { padding: 1.25rem; }
+.modal-close {
+    background: transparent;
+    border: none;
 
 .modal-content { padding: 1.25rem; }
 .modal-close {
@@ -745,3 +747,4 @@ textarea {
     overflow: hidden;
 
 }
+
