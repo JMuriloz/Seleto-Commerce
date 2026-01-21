@@ -419,10 +419,11 @@ function renderPage() {
 // =====================================================
 
 // 1. HOME PAGE
+// No arquivo script.js -> Dentro de renderHomePage(container)
+
 function renderHomePage(container) {
     container.innerHTML = `
-        <section class="hero-gradient text-white py-16 md:py-24">
-          <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
+        <section class="hero-gradient text-white py-12 md:py-16"> <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
              <div class="fade-in">
                 <h1 class="text-3xl md:text-5xl font-bold mb-4 leading-tight">Melhores Ofertas do Dia</h1>
                 <p class="text-lg text-gray-300 mb-8">Selecionamos os melhores produtos com preços imbatíveis.</p>
@@ -430,8 +431,9 @@ function renderHomePage(container) {
                   <button onclick="document.getElementById('produtos-destaque').scrollIntoView({behavior: 'smooth'})" class="bg-primary hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-semibold transition-all pulse-btn">Ver Ofertas</button>
                 </div>
              </div>
-             <div class="carousel-container rounded-2xl overflow-hidden shadow-2xl">
-                <div id="featured-carousel" class="carousel-track">
+             
+             <div class="carousel-container rounded-2xl overflow-hidden shadow-2xl h-64 md:h-80 w-full">
+                <div id="featured-carousel" class="carousel-track h-full">
                   ${renderCarouselSlides()}
                 </div>
              </div>
@@ -439,41 +441,31 @@ function renderHomePage(container) {
         </section>
 
         <section id="produtos-destaque" class="py-12 bg-white">
-          <div class="max-w-7xl mx-auto px-4">
-            <h2 class="text-2xl font-bold mb-6">🔥 Em Alta</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              ${renderProductCards(appState.products.filter(p => p.badges?.includes('em_alta')).slice(0, 4))}
-            </div>
-          </div>
-        </section>
-        
-        <section class="py-12">
-          <div class="max-w-7xl mx-auto px-4">
-            <h2 class="text-2xl font-bold mb-6">📦 Todos os Produtos</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              ${renderProductCards(appState.products)}
-            </div>
-          </div>
-        </section>
-    `;
-    startCarousel();
-}
+          ```
+
+#### Alteração B: Na função `renderCarouselSlides`
+Localize a função `renderCarouselSlides` (logo abaixo da anterior). Vamos remover o `min-h-[300px]` e mandar a imagem ocupar 100% da altura que definimos acima.
+
+**Código atualizado da função:**
+
+```javascript
+// No arquivo script.js -> renderCarouselSlides()
 
 function renderCarouselSlides() {
     const slides = appState.featuredProducts.slice(0, 4);
     if (!slides.length) return `<div class="p-12 text-center text-white bg-secondary fade-in">Nenhum destaque ainda.</div>`;
     
     return slides.map((product, i) => `
-        <div class="carousel-slide relative min-h-[300px] cursor-pointer fade-in" onclick="viewProduct('${product.slug}')" style="animation-delay: ${i * 0.15}s">
+        <div class="carousel-slide relative h-full w-full cursor-pointer fade-in" onclick="viewProduct('${product.slug}')" style="animation-delay: ${i * 0.15}s">
           <img src="${product.images?.[0] || ''}" class="w-full h-full object-cover bg-gray-300" onerror="this.style.background='#ddd'">
-          <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-             <h3 class="text-xl font-bold text-white">${product.title}</h3>
-             <p class="text-primary font-bold text-2xl">${formatPrice(product.price)}</p>
+          
+          <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent">
+             <h3 class="text-lg font-bold text-white truncate">${product.title}</h3>
+             <p class="text-primary font-bold text-xl">${formatPrice(product.price)}</p>
           </div>
         </div>
     `).join('');
 }
-
 function startCarousel() {
     if (appState.carouselInterval) clearInterval(appState.carouselInterval);
     appState.carouselIndex = 0;
@@ -1285,4 +1277,5 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
