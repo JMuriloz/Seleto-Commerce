@@ -260,8 +260,10 @@ function renderPage() {
 
     // Admin handling
     if (appState.currentPage.startsWith('admin')) {
-        mainApp.classList.add('hidden');
-        adminPanel.classList.remove('hidden');
+        // keep main header visible so theme button stays accessible
+        mainApp.classList.remove('hidden');
+        adminPanel.classList.add('hidden');
+        // render admin UI inside the main page container so header/footer remain
         renderAdminPanel();
         return;
     }
@@ -576,7 +578,10 @@ function viewProduct(slug) {
 // ADMIN PANEL RENDERER
 // =====================================================
 function renderAdminPanel() {
-    const panel = document.getElementById('admin-panel');
+    const adminPanelEl = document.getElementById('admin-panel');
+    const pageContainer = document.getElementById('page-container');
+    // se `pageContainer` existir (o header está presente), renderizamos dentro dele
+    const panel = pageContainer || adminPanelEl;
     
     // Login Screen
     if (!appState.isAdmin) {
@@ -595,6 +600,10 @@ function renderAdminPanel() {
     }
 
     // Admin Dashboard
+    // Garantir seção padrão
+    if (appState.adminSection === 'dashboard') appState.adminSection = 'products';
+    // Se estamos renderizando dentro do `page-container`, limpar o conteúdo atual
+    if (pageContainer) pageContainer.innerHTML = '';
     panel.innerHTML = `
         <div class="flex flex-col md:flex-row gap-0 md:gap-4 bg-gray-50">
             <aside class="w-full md:w-64 bg-secondary text-white md:min-h-screen">
