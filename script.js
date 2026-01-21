@@ -271,35 +271,39 @@ function loadSampleData() {
 // =====================================================
 // AUTHENTICATION & ADMIN
 // =====================================================
+const ADMIN_EMAILS = [
+    "muriloj212@gmail.com", 
+    "outro.socio@gmail.com"
+];
+
 async function handleGoogleLogin() {
     try {
         console.log('🔐 Iniciando login com Google...');
         const result = await signInWithPopup(auth, provider);
-        if (result.user) {
-            appState.adminUser = result.user;
+        const user = result.user;
+        
+        // Verifica se o email está na lista permitida
+        if (user && ADMIN_EMAILS.includes(user.email)) {
+            appState.adminUser = user;
             appState.isAdmin = true;
-            console.log('✅ Login bem-sucedido!', {
-                uid: result.user.uid,
-                email: result.user.email,
-                displayName: result.user.displayName
-            });
-            // Auto-criar admin
-            await ensureAdminExists(result.user.uid, result.user.email);
             
-            showToast('Login realizado!', 'success');
+            console.log('✅ Admin logado:', user.email);
+            await ensureAdminExists(user.uid, user.email);
+            
+            showToast(`Bem-vindo, ${user.displayName}!`, 'success');
             updateAdminButton();
             navigateTo('admin-dashboard');
+        } else {
+            // Usuário logou, mas não é admin
+            console.warn('⛔ Acesso negado para:', user.email);
+            showToast('Acesso restrito a administradores.', 'error');
+            await signOut(auth); // Desloga o intruso imediatamente
         }
     } catch (error) {
-        console.error('❌ Erro no login:', {
-            code: error.code,
-            message: error.message,
-            fullError: error
-        });
+        console.error('❌ Erro no login:', error);
         showToast(`Erro no login: ${error.message}`, 'error');
     }
 }
-
 async function ensureAdminExists(uid, email) {
     try {
         const adminRef = doc(db, 'admins', uid);
@@ -335,19 +339,19 @@ function handleLogout() {
 }
 
 onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if (user && ADMIN_EMAILS.includes(user.email)) {
         appState.adminUser = user;
         appState.isAdmin = true;
-        console.log('🔐 Autenticação detectada:', {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName
-        });
+        console.log('🔐 Admin autenticado:', user.email);
         updateAdminButton();
     } else {
         appState.adminUser = null;
         appState.isAdmin = false;
-        console.log('🔐 Usuário desautenticado.');
+        if (user) {
+            // Se tiver usuário logado mas não for admin (caso raro de cache), desloga
+            signOut(auth); 
+        }
+        console.log('🔐 Usuário não autenticado ou sem permissão.');
         updateAdminButton();
     }
 });
@@ -364,6 +368,8 @@ function updateAdminButton() {
         console.log('🔴 Botão atualizado: "Login" (usuário não autenticado)');
     }
 }
+
+
 
 // =====================================================
 // NAVIGATION SYSTEM
@@ -1279,3 +1285,4 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
