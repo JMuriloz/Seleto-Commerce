@@ -195,7 +195,12 @@ async function createDefaultCategories() {
         console.log('✅ Categorias padrão criadas no Firestore');
         await loadCategories(); // Recarregar
     } catch (err) {
-        console.error('❌ Erro ao criar categorias padrão:', err);
+        console.error('❌ Erro ao criar categorias:', {
+            code: err.code,
+            message: err.message,
+            adminUid: appState.adminUser?.uid,
+            isAdmin: appState.isAdmin
+        });
     }
 }
 
@@ -234,7 +239,12 @@ async function createDefaultStores() {
         console.log('✅ Lojas padrão criadas no Firestore');
         await loadStores(); // Recarregar
     } catch (err) {
-        console.error('❌ Erro ao criar lojas padrão:', err);
+        console.error('❌ Erro ao criar lojas:', {
+            code: err.code,
+            message: err.message,
+            adminUid: appState.adminUser?.uid,
+            isAdmin: appState.isAdmin
+        });
     }
 }
 
@@ -1040,14 +1050,8 @@ async function handleProductSubmit(event, id) {
     };
 
     try {
-        // tentativa de preencher preço/avaliação a partir do link (melhor esforço)
-        try {
-            const meta = await fetchAffiliateMetadata(productData.affiliateUrl);
-            if (meta.price && (!productData.price || productData.price === 0)) productData.price = parseFloat(meta.price) || productData.price;
-            if (meta.rating && (!productData.rating || productData.rating === 0)) productData.rating = parseFloat(meta.rating) || productData.rating;
-        } catch (metaErr) {
-            console.warn('Não foi possível obter metadados do link:', metaErr);
-        }
+        // NOTA: fetchAffiliateMetadata removido (causa CORS)
+        // Preço e rating devem ser preenchidos manualmente pelo admin
 
         if (id) {
             await updateDoc(doc(db, "products", id), productData);
