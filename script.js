@@ -273,7 +273,7 @@ function loadSampleData() {
 // =====================================================
 const ADMIN_EMAILS = [
     "muriloj212@gmail.com", 
-    "outro.socio@gmail.com"
+    "seletomarket@gmail.com"
 ];
 
 async function handleGoogleLogin() {
