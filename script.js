@@ -51,7 +51,7 @@ const appState = {
     mobileMenuOpen: false,
     filterSidebarOpen: false,
     adminSection: 'dashboard',
-    darkMode: localStorage.getItem('darkMode') === 'true'
+    darkMode: localStorage.getItem('darkMode') === 'true',
     carouselIndex: 0, // ADICIONE ESTA LINHA
     carouselInterval: null // ADICIONE ESTA LINHA
 };
@@ -1324,6 +1324,7 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
 
