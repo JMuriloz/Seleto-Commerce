@@ -837,3 +837,42 @@ html.dark .modal-content {
     height: 100%;
     object-fit: cover; /* Isso impede a foto de ficar gigante ou esticada */
 }
+
+/* Limita o tamanho do carrossel na Home */
+#featured-carousel img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Mantém a proporção sem esticar */
+}
+
+/* Reduz o tamanho do Modal de Produtos */
+.modal-content {
+    max-width: 480px !important; /* Tamanho menor e mais elegante */
+    width: 95%;
+    margin: auto;
+    padding: 24px !important;
+}
+
+/* Estilo das bolinhas do carrossel */
+.carousel-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: -30px;
+    position: relative;
+    z-index: 20;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dot.active {
+    background: #FF6B35;
+    transform: scale(1.2);
+}
