@@ -596,17 +596,20 @@ function renderAdminPanel() {
 
     // Admin Dashboard
     panel.innerHTML = `
-        <div class="flex h-screen bg-gray-100">
-            <aside class="w-64 bg-secondary text-white flex-shrink-0">
-                <div class="p-6 font-bold text-xl border-b border-gray-700">Painel Admin</div>
-                <nav class="p-4 space-y-2">
-                    <button onclick="appState.adminSection='products'; renderAdminPanel()" class="w-full text-left px-4 py-3 rounded hover:bg-white/10 ${appState.adminSection === 'products' ? 'bg-primary text-white' : ''}">Produtos</button>
-                    <button onclick="navigateTo('home')" class="w-full text-left px-4 py-3 rounded hover:bg-white/10 text-gray-400">Ver Site</button>
-                    <button onclick="handleLogout()" class="w-full text-left px-4 py-3 rounded hover:bg-red-500/20 text-red-300">Sair</button>
+        <div class="flex flex-col md:flex-row gap-0 md:gap-4 bg-gray-50">
+            <aside class="w-full md:w-64 bg-secondary text-white md:min-h-screen">
+                <div class="p-4 md:p-6 font-bold text-lg md:text-xl border-b border-gray-700 flex items-center gap-2">
+                    <span>⚙️</span>
+                    <span>Painel Admin</span>
+                </div>
+                <nav class="p-2 md:p-4 space-y-1 md:space-y-2 flex md:flex-col gap-1 md:gap-0 overflow-x-auto md:overflow-visible">
+                    <button onclick="appState.adminSection='products'; renderAdminPanel()" class="flex-shrink-0 px-4 py-3 rounded hover:bg-white/10 transition-colors ${appState.adminSection === 'products' ? 'bg-primary text-white' : 'text-gray-300'} text-sm md:text-base">Produtos</button>
+                    <button onclick="navigateTo('home')" class="flex-shrink-0 px-4 py-3 rounded hover:bg-white/10 text-gray-400 transition-colors text-sm md:text-base">Ver Site</button>
+                    <button onclick="handleLogout()" class="flex-shrink-0 px-4 py-3 rounded hover:bg-red-500/20 text-red-300 transition-colors text-sm md:text-base">Sair</button>
                 </nav>
             </aside>
             
-            <main class="flex-1 overflow-auto p-8">
+            <main class="flex-1 overflow-auto p-4 md:p-8 w-full">
                 ${renderAdminContent()}
             </main>
         </div>
@@ -622,40 +625,89 @@ function renderAdminContent() {
 
 function renderAdminProducts() {
     return `
-        <div class="flex justify-between items-center mb-8">
-            <h2 class="text-2xl font-bold text-secondary">Gerenciar Produtos</h2>
-            <button onclick="openProductModal()" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors">+ Novo Produto</button>
-        </div>
-        
-        <div class="bg-white rounded-xl shadow overflow-hidden">
-            <table class="w-full text-left">
-                <thead class="bg-gray-50 border-b">
-                    <tr>
-                        <th class="p-4">Produto</th>
-                        <th class="p-4">Loja</th>
-                        <th class="p-4">Link Afiliado</th>
-                        <th class="p-4">Preço</th>
-                        <th class="p-4 text-right">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${appState.products.map(p => `
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="p-4">
-                                <div class="font-medium">${p.title}</div>
-                                <div class="text-xs text-gray-500">${p.category}</div>
-                            </td>
-                            <td class="p-4"><span class="px-2 py-1 text-xs rounded bg-gray-200">${p.store}</span></td>
-                            <td class="p-4 max-w-xs truncate text-gray-400 text-sm">${p.affiliateUrl}</td>
-                            <td class="p-4 font-bold text-primary">${formatPrice(p.price)}</td>
-                            <td class="p-4 text-right space-x-2">
-                                <button onclick="editProduct('${p.id}')" class="text-blue-500 hover:underline">Editar</button>
-                                <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:underline">Excluir</button>
-                            </td>
+        <div class="space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-2xl md:text-3xl font-bold text-secondary">Gerenciar Produtos</h2>
+                    <p class="text-gray-500 text-sm mt-1">${appState.products.length} produto(s) cadastrado(s)</p>
+                </div>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button onclick="openProductModal()" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors font-medium flex items-center gap-2 justify-center">
+                        <span>➕</span>
+                        <span>Novo Produto</span>
+                    </button>
+                    <button onclick="addTestProduct()" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                        🧪 Produto de Teste
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tabela de Produtos (Desktop) -->
+            <div class="hidden sm:block bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                <table class="w-full">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Produto</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Loja</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Preço</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${appState.products.map(p => `
+                            <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-3">
+                                        <img src="${p.images?.[0]}" alt="${p.title}" class="w-10 h-10 rounded object-cover" onerror="this.src='https://via.placeholder.com/40'">
+                                        <div>
+                                            <div class="font-medium text-gray-900 text-sm">${p.title}</div>
+                                            <div class="text-xs text-gray-500">${p.category}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded font-medium bg-blue-100 text-blue-700">${p.store}</span></td>
+                                <td class="px-4 py-3 font-bold text-primary">R$ ${p.price.toFixed(2)}</td>
+                                <td class="px-4 py-3 text-right space-x-2">
+                                    <button onclick="editProduct('${p.id}')" class="text-blue-500 hover:text-blue-700 font-medium text-sm">✏️ Editar</button>
+                                    <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:text-red-700 font-medium text-sm">🗑️ Excluir</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Cards de Produtos (Mobile) -->
+            <div class="sm:hidden grid grid-cols-1 gap-4">
+                ${appState.products.map(p => `
+                    <div class="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                        <div class="flex gap-3">
+                            <img src="${p.images?.[0]}" alt="${p.title}" class="w-16 h-16 rounded object-cover flex-shrink-0" onerror="this.src='https://via.placeholder.com/64'">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-900 text-sm">${p.title}</div>
+                                <div class="text-xs text-gray-500">${p.category}</div>
+                                <div class="mt-2 flex gap-2 items-center">
+                                    <span class="px-2 py-1 text-xs rounded font-medium bg-blue-100 text-blue-700">${p.store}</span>
+                                    <span class="font-bold text-primary">R$ ${p.price.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-2 border-t border-gray-200">
+                            <button onclick="editProduct('${p.id}')" class="flex-1 px-3 py-2 text-blue-500 hover:bg-blue-50 rounded text-sm font-medium">✏️ Editar</button>
+                            <button onclick="deleteProduct('${p.id}')" class="flex-1 px-3 py-2 text-red-500 hover:bg-red-50 rounded text-sm font-medium">🗑️ Excluir</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- Mensagem vazia -->
+            ${appState.products.length === 0 ? `
+                <div class="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                    <div class="text-4xl mb-2">📦</div>
+                    <h3 class="text-lg font-semibold text-gray-700">Nenhum produto cadastrado</h3>
+                    <p class="text-gray-500 text-sm mt-2">Clique no botão acima para adicionar seu primeiro produto</p>
+                </div>
+            ` : ''}
         </div>
     `;
 }
@@ -668,73 +720,136 @@ function openProductModal(productId = null) {
     const modal = document.getElementById('product-modal');
     
     modal.innerHTML = `
-        <div class="modal-content p-6">
-            <h3 class="text-xl font-bold mb-4">${product ? 'Editar' : 'Novo'} Produto</h3>
-            <form id="admin-product-form" onsubmit="handleProductSubmit(event, '${productId || ''}')" class="space-y-4">
+        <div class="modal-content p-4 md:p-8 max-h-screen overflow-y-auto">
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-300">
+                <h3 class="text-2xl md:text-3xl font-bold text-secondary">
+                    ${product ? '✏️ Editar' : '➕ Novo'} Produto
+                </h3>
+                <button onclick="document.getElementById('product-modal').classList.remove('active')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <form id="admin-product-form" onsubmit="handleProductSubmit(event, '${productId || ''}')" class="space-y-6">
                 
-                <div>
-                    <label class="block text-sm font-medium mb-1">Nome do Produto</label>
-                    <input type="text" name="title" value="${product?.title || ''}" required class="w-full border rounded-lg p-2">
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Seção: Informações Básicas -->
+                <fieldset class="space-y-4">
+                    <legend class="text-lg font-bold text-secondary flex items-center gap-2 pb-2 border-b border-gray-300">
+                        📝 Informações Básicas
+                    </legend>
+                    
                     <div>
-                        <label class="block text-sm font-medium mb-1">Preço (R$)</label>
-                        <input type="number" step="0.01" name="price" value="${product?.price || ''}" required class="w-full border rounded-lg p-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Nome do Produto *</label>
+                        <input type="text" name="title" value="${product?.title || ''}" placeholder="Ex: Fone Bluetooth Wireless" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
                     </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Preço (R$) *</label>
+                            <input type="number" step="0.01" name="price" value="${product?.price || ''}" placeholder="0.00" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Avaliação (0-5)</label>
+                            <input type="number" step="0.1" max="5" name="rating" value="${product?.rating || 4.5}" class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
+                        </div>
+                    </div>
+
                     <div>
-                        <label class="block text-sm font-medium mb-1">Avaliação (0-5)</label>
-                        <input type="number" step="0.1" max="5" name="rating" value="${product?.rating || 4.5}" class="w-full border rounded-lg p-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
+                        <textarea name="description" rows="3" placeholder="Descreva o produto..." class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors resize-none">${product?.description || ''}</textarea>
                     </div>
-                </div>
+                </fieldset>
 
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Seção: Categorias e Loja -->
+                <fieldset class="space-y-4">
+                    <legend class="text-lg font-bold text-secondary flex items-center gap-2 pb-2 border-b border-gray-300">
+                        🏪 Categoria e Loja
+                    </legend>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Categoria *</label>
+                            <select name="category" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
+                                <option value="">Selecione uma categoria</option>
+                                ${appState.categories.map(c => `<option value="${c.slug}" ${product?.category === c.slug ? 'selected' : ''}>${c.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Loja Vendedora *</label>
+                            <select name="store" required class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
+                                <option value="">Selecione uma loja</option>
+                                <option value="Amazon" ${product?.store === 'Amazon' ? 'selected' : ''}>Amazon</option>
+                                <option value="Shopee" ${product?.store === 'Shopee' ? 'selected' : ''}>Shopee</option>
+                                <option value="TikTok Shop" ${product?.store === 'TikTok Shop' ? 'selected' : ''}>TikTok Shop</option>
+                                <option value="Magalu" ${product?.store === 'Magalu' ? 'selected' : ''}>Magalu</option>
+                            </select>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Seção: Links -->
+                <fieldset class="space-y-4">
+                    <legend class="text-lg font-bold text-secondary flex items-center gap-2 pb-2 border-b border-gray-300">
+                        🔗 Links
+                    </legend>
+
                     <div>
-                        <label class="block text-sm font-medium mb-1">Loja Vendedora</label>
-                        <select name="store" class="w-full border rounded-lg p-2">
-                            <option value="Amazon" ${product?.store === 'Amazon' ? 'selected' : ''}>Amazon</option>
-                            <option value="Shopee" ${product?.store === 'Shopee' ? 'selected' : ''}>Shopee</option>
-                            <option value="TikTok Shop" ${product?.store === 'TikTok Shop' ? 'selected' : ''}>TikTok Shop</option>
-                            <option value="Magalu" ${product?.store === 'Magalu' ? 'selected' : ''}>Magalu</option>
-                        </select>
+                        <label class="block text-sm font-semibold text-primary mb-2">Link de Afiliado (URL Completa) *</label>
+                        <input type="url" name="affiliateUrl" value="${product?.affiliateUrl || ''}" placeholder="https://exemplo.com/produto?id=123" required class="w-full border-2 border-primary rounded-lg p-3 focus:border-orange-600 focus:outline-none transition-colors">
+                        <p class="text-xs text-gray-500 mt-1">⚠️ Este link é fundamental para ganhar comissões de afiliado</p>
                     </div>
+
                     <div>
-                        <label class="block text-sm font-medium mb-1">Categoria</label>
-                        <select name="category" class="w-full border rounded-lg p-2">
-                            ${appState.categories.map(c => `<option value="${c.slug}" ${product?.category === c.slug ? 'selected' : ''}>${c.name}</option>`).join('')}
-                        </select>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">URL da Imagem do Produto</label>
+                        <input type="url" name="image" value="${product?.images?.[0] || ''}" placeholder="https://exemplo.com/imagem.jpg" class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
+                        ${product?.images?.[0] ? `
+                            <div class="mt-2 p-2 bg-gray-100 rounded flex items-center gap-3">
+                                <img src="${product.images[0]}" alt="Preview" class="w-12 h-12 rounded object-cover" onerror="this.src='https://via.placeholder.com/48'">
+                                <span class="text-sm text-gray-600">Imagem atual</span>
+                            </div>
+                        ` : ''}
                     </div>
-                </div>
+                </fieldset>
 
-                <div>
-                    <label class="block text-sm font-bold text-primary mb-1">Link de Afiliado (URL Completa)</label>
-                    <input type="url" name="affiliateUrl" value="${product?.affiliateUrl || ''}" placeholder="https://..." required class="w-full border-2 border-primary/20 rounded-lg p-2 focus:border-primary">
-                </div>
+                <!-- Seção: Badges -->
+                <fieldset class="space-y-3">
+                    <legend class="text-lg font-bold text-secondary flex items-center gap-2 pb-2 border-b border-gray-300">
+                        🎯 Destaque
+                    </legend>
 
-                <div>
-                    <label class="block text-sm font-medium mb-1">URL da Imagem</label>
-                    <input type="url" name="image" value="${product?.images?.[0] || ''}" placeholder="https://..." class="w-full border rounded-lg p-2">
-                </div>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-3 p-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" name="badge_em_alta" ${product?.badges?.includes('em_alta') ? 'checked' : ''} class="w-5 h-5 text-primary rounded cursor-pointer">
+                            <span class="flex-1">
+                                <span class="font-semibold text-gray-700">🔥 Em Alta</span>
+                                <p class="text-xs text-gray-500">Destaque no topo da página</p>
+                            </span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 p-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" name="badge_mais_vendido" ${product?.badges?.includes('mais_vendido') ? 'checked' : ''} class="w-5 h-5 text-primary rounded cursor-pointer">
+                            <span class="flex-1">
+                                <span class="font-semibold text-gray-700">⭐ Mais Vendido</span>
+                                <p class="text-xs text-gray-500">Destaca como produto popular</p>
+                            </span>
+                        </label>
 
-                <div>
-                    <label class="block text-sm font-medium mb-1">Descrição</label>
-                    <textarea name="description" rows="3" class="w-full border rounded-lg p-2">${product?.description || ''}</textarea>
-                </div>
+                        <label class="flex items-center gap-3 p-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" name="badge_custo_beneficio" ${product?.badges?.includes('custo_beneficio') ? 'checked' : ''} class="w-5 h-5 text-primary rounded cursor-pointer">
+                            <span class="flex-1">
+                                <span class="font-semibold text-gray-700">💰 Custo-Benefício</span>
+                                <p class="text-xs text-gray-500">Melhor relação preço-qualidade</p>
+                            </span>
+                        </label>
+                    </div>
+                </fieldset>
 
-                <div class="flex gap-4 border-t pt-4">
-                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="badge_em_alta" ${product?.badges?.includes('em_alta') ? 'checked' : ''}>
-                        <span class="text-sm">🔥 Em Alta</span>
-                     </label>
-                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="badge_mais_vendido" ${product?.badges?.includes('mais_vendido') ? 'checked' : ''}>
-                        <span class="text-sm">⭐ Mais Vendido</span>
-                     </label>
-                </div>
-
-                <div class="flex gap-3 mt-6 pt-4 border-t">
-                    <button type="button" onclick="document.getElementById('product-modal').classList.remove('active')" class="flex-1 py-2 border rounded-lg">Cancelar</button>
-                    <button type="submit" class="flex-1 py-2 bg-primary text-white rounded-lg font-bold hover:bg-orange-600">Salvar Produto</button>
+                <!-- Botões de Ação -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-6 border-t-2 border-gray-300">
+                    <button type="button" onclick="document.getElementById('product-modal').classList.remove('active')" class="flex-1 py-3 border-2 border-gray-400 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                        ❌ Cancelar
+                    </button>
+                    <button type="submit" class="flex-1 py-3 bg-primary text-white rounded-lg font-bold hover:bg-orange-600 transition-colors">
+                        ✅ ${product ? 'Atualizar' : 'Criar'} Produto
+                    </button>
                 </div>
             </form>
         </div>
@@ -800,6 +915,46 @@ async function deleteProduct(id) {
     }
 }
 
+// Adiciona um produto de teste (útil para validar o fluxo do admin sem preencher o formulário)
+async function addTestProduct() {
+    const sample = {
+        title: 'Produto de Teste - Inserido Rápido',
+        slug: generateSlug('Produto de Teste - Inserido Rápido'),
+        price: 99.90,
+        store: 'Amazon',
+        category: appState.categories?.[0]?.slug || 'outros',
+        rating: 4.5,
+        affiliateUrl: '#',
+        images: ['https://via.placeholder.com/400x400?text=Teste'],
+        description: 'Produto criado automaticamente para testes via painel admin.',
+        badges: [],
+        active: true,
+        createdAt: serverTimestamp()
+    };
+
+    try {
+        // tenta salvar no Firestore, se disponível
+        if (typeof addDoc === 'function' && db) {
+            await addDoc(collection(db, 'products'), sample);
+            showToast('Produto de teste salvo no Firestore.', 'success');
+        } else {
+            // fallback local (útil para desenvolvimento sem Firebase)
+            sample.id = 'local-' + Date.now();
+            appState.products.unshift(sample);
+            showToast('Produto de teste adicionado localmente.', 'success');
+        }
+    } catch (err) {
+        console.error('Erro ao adicionar produto de teste:', err);
+        // fallback local
+        sample.id = 'local-' + Date.now();
+        appState.products.unshift(sample);
+        showToast('Falha ao salvar no Firestore — produto adicionado localmente.', 'info');
+    }
+
+    await loadProducts();
+    renderAdminPanel();
+}
+
 // =====================================================
 // GLOBAL BINDINGS (Obrigatório para type="module")
 // =====================================================
@@ -814,6 +969,7 @@ window.openProductModal = openProductModal;
 window.editProduct = editProduct;
 window.deleteProduct = deleteProduct;
 window.handleProductSubmit = handleProductSubmit;
+window.addTestProduct = addTestProduct;
 
 // =====================================================
 // RENDERIZAÇÃO DE CATEGORIAS
