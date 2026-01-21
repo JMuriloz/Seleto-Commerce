@@ -3,7 +3,7 @@
 // =====================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { 
-    getFirestore, collection, getDocs, doc, addDoc, updateDoc, deleteDoc, 
+    getFirestore, collection, getDocs, doc, addDoc, updateDoc, deleteDoc, getDoc, setDoc,
     query, where, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
@@ -163,8 +163,13 @@ async function loadCategories() {
         const q = query(collection(db, 'categories'), where('active', '==', true));
         const snapshot = await getDocs(q);
         appState.categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (appState.categories.length === 0) {
+            console.warn('⚠️ Nenhuma categoria no Firestore. Criando categorias padrão...');
+            await createDefaultCategories();
+        }
     } catch (error) {
-        console.error('Error loading categories:', error);
+        console.error('❌ Erro ao carregar categorias:', { code: error.code, message: error.message });
+        // Fallback local
         appState.categories = [
             { id: '1', name: 'Eletrônicos', slug: 'eletronicos', active: true },
             { id: '2', name: 'Casa', slug: 'casa', active: true },
@@ -173,18 +178,63 @@ async function loadCategories() {
     }
 }
 
+// Função para criar categorias padrão no Firestore
+async function createDefaultCategories() {
+    const categories = [
+        { name: 'Eletrônicos', slug: 'eletronicos', active: true },
+        { name: 'Casa', slug: 'casa', active: true },
+        { name: 'Moda', slug: 'moda', active: true },
+        { name: 'Esportes', slug: 'esportes', active: true },
+        { name: 'Livros', slug: 'livros', active: true }
+    ];
+    
+    try {
+        for (const cat of categories) {
+            await addDoc(collection(db, 'categories'), cat);
+        }
+        console.log('✅ Categorias padrão criadas no Firestore');
+        await loadCategories(); // Recarregar
+    } catch (err) {
+        console.error('❌ Erro ao criar categorias padrão:', err);
+    }
+}
+
 async function loadStores() {
     try {
         const q = query(collection(db, 'stores'), where('active', '==', true));
         const snapshot = await getDocs(q);
         appState.stores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (appState.stores.length === 0) {
+            console.warn('⚠️ Nenhuma loja no Firestore. Criando lojas padrão...');
+            await createDefaultStores();
+        }
     } catch (error) {
-        console.error('Error loading stores:', error);
+        console.error('❌ Erro ao carregar lojas:', { code: error.code, message: error.message });
+        // Fallback local (sem placeholders)
         appState.stores = [
-            { id: '1', name: 'Amazon', slug: 'amazon', logo: 'https://via.placeholder.com/120x40?text=Amazon', active: true },
-            { id: '2', name: 'Shopee', slug: 'shopee', logo: 'https://via.placeholder.com/120x40?text=Shopee', active: true },
-            { id: '3', name: 'Magalu', slug: 'magalu', logo: 'https://via.placeholder.com/120x40?text=Magalu', active: true }
+            { id: '1', name: 'Amazon', slug: 'amazon', logo: '', active: true },
+            { id: '2', name: 'Shopee', slug: 'shopee', logo: '', active: true },
+            { id: '3', name: 'Magalu', slug: 'magalu', logo: '', active: true }
         ];
+    }
+}
+
+// Função para criar lojas padrão no Firestore
+async function createDefaultStores() {
+    const stores = [
+        { name: 'Amazon', slug: 'amazon', logo: '', active: true },
+        { name: 'Shopee', slug: 'shopee', logo: '', active: true },
+        { name: 'Magalu', slug: 'magalu', logo: '', active: true }
+    ];
+    
+    try {
+        for (const store of stores) {
+            await addDoc(collection(db, 'stores'), store);
+        }
+        console.log('✅ Lojas padrão criadas no Firestore');
+        await loadStores(); // Recarregar
+    } catch (err) {
+        console.error('❌ Erro ao criar lojas padrão:', err);
     }
 }
 
@@ -223,6 +273,9 @@ async function handleGoogleLogin() {
                 email: result.user.email,
                 displayName: result.user.displayName
             });
+            // Auto-criar admin
+            await ensureAdminExists(result.user.uid, result.user.email);
+            
             showToast('Login realizado!', 'success');
             updateAdminButton();
             navigateTo('admin-dashboard');
@@ -234,6 +287,27 @@ async function handleGoogleLogin() {
             fullError: error
         });
         showToast(`Erro no login: ${error.message}`, 'error');
+    }
+}
+
+async function ensureAdminExists(uid, email) {
+    try {
+        const adminRef = doc(db, 'admins', uid);
+        const adminDoc = await getDoc(adminRef);
+        
+        if (!adminDoc.exists()) {
+            console.log('Creating admin for:', uid);
+            await setDoc(adminRef, {
+                uid: uid,
+                email: email,
+                role: 'admin',
+                createdAt: serverTimestamp(),
+                active: true
+            });
+            console.log('Admin created:', uid);
+        }
+    } catch (err) {
+        console.warn('Admin creation failed:', err.message);
     }
 }
 
@@ -375,7 +449,7 @@ function renderCarouselSlides() {
     
     return slides.map((product, i) => `
         <div class="carousel-slide relative min-h-[300px] cursor-pointer fade-in" onclick="viewProduct('${product.slug}')" style="animation-delay: ${i * 0.15}s">
-          <img src="${product.images?.[0]}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/600x400'">
+          <img src="${product.images?.[0] || ''}" class="w-full h-full object-cover bg-gray-300" onerror="this.style.background='#ddd'">
           <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
              <h3 class="text-xl font-bold text-white">${product.title}</h3>
              <p class="text-primary font-bold text-2xl">${formatPrice(product.price)}</p>
@@ -615,7 +689,7 @@ function renderProductCards(products) {
     return products.map((p, i) => `
         <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer border border-gray-100 fade-in" onclick="viewProduct('${p.slug}')" style="animation-delay: ${i * 0.05}s">
             <div class="relative aspect-square">
-                <img src="${p.images?.[0]}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://via.placeholder.com/400'">
+                <img src="${p.images?.[0] || ''}" class="w-full h-full object-cover bg-gray-300" loading="lazy" onerror="this.style.background='#ddd'">
                 <div class="absolute top-2 right-2">
                     <span class="${getStoreColor(p.store)} text-white text-[10px] font-bold px-2 py-1 rounded-full">${p.store}</span>
                 </div>
@@ -642,7 +716,7 @@ function viewProduct(slug) {
 function renderAdminPanel() {
     const adminPanelEl = document.getElementById('admin-panel');
     const pageContainer = document.getElementById('page-container');
-    // se `pageContainer` existir (o header está presente), renderizamos dentro dele
+    // Use page container only if header should stay visible
     const panel = pageContainer || adminPanelEl;
     
     // Login Screen
@@ -664,11 +738,12 @@ function renderAdminPanel() {
     // Admin Dashboard
     // Garantir seção padrão
     if (appState.adminSection === 'dashboard') appState.adminSection = 'products';
-    // Se estamos renderizando dentro do `page-container`, limpar o conteúdo atual
-    if (pageContainer) pageContainer.innerHTML = '';
-    panel.innerHTML = `
-        <div class="flex flex-col md:flex-row gap-0 md:gap-4 bg-gray-50">
-            <aside class="w-full md:w-64 bg-secondary text-white md:min-h-screen">
+    
+    // IMPORTANTE: Se renderizando no page-container (header visível), não limpar tudo
+    // Deixar o header intacto
+    const adminContent = `
+        <div class="flex flex-col md:flex-row gap-0 md:gap-4 bg-gray-50 min-h-screen">
+            <aside class="w-full md:w-64 bg-secondary text-white">
                 <div class="p-4 md:p-6 font-bold text-lg md:text-xl border-b border-gray-700 flex items-center gap-2">
                     <span>⚙️</span>
                     <span>Painel Admin</span>
@@ -687,6 +762,8 @@ function renderAdminPanel() {
         
         <div id="product-modal" class="modal-backdrop"></div>
     `;
+    
+    panel.innerHTML = adminContent;
 }
 
 function renderAdminContent() {
@@ -729,7 +806,7 @@ function renderAdminProducts() {
                             <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
-                                        <img src="${p.images?.[0]}" alt="${p.title}" class="w-10 h-10 rounded object-cover" onerror="this.src='https://via.placeholder.com/40'">
+                                        <img src="${p.images?.[0] || ''}" alt="${p.title}" class="w-10 h-10 rounded object-cover bg-gray-200" onerror="this.style.background='#ddd'">
                                         <div>
                                             <div class="font-medium text-gray-900 text-sm">${p.title}</div>
                                             <div class="text-xs text-gray-500">${p.category}</div>
@@ -753,7 +830,7 @@ function renderAdminProducts() {
                 ${appState.products.map(p => `
                     <div class="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
                         <div class="flex gap-3">
-                            <img src="${p.images?.[0]}" alt="${p.title}" class="w-16 h-16 rounded object-cover flex-shrink-0" onerror="this.src='https://via.placeholder.com/64'">
+                            <img src="${p.images?.[0] || ''}" alt="${p.title}" class="w-16 h-16 rounded object-cover flex-shrink-0 bg-gray-200" onerror="this.style.background='#ddd'">
                             <div class="flex-1">
                                 <div class="font-medium text-gray-900 text-sm">${p.title}</div>
                                 <div class="text-xs text-gray-500">${p.category}</div>
@@ -873,7 +950,7 @@ function openProductModal(productId = null) {
                         <input type="url" name="image" value="${product?.images?.[0] || ''}" placeholder="https://exemplo.com/imagem.jpg" class="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-primary focus:outline-none transition-colors">
                         ${product?.images?.[0] ? `
                             <div class="mt-2 p-2 bg-gray-100 rounded flex items-center gap-3">
-                                <img src="${product.images[0]}" alt="Preview" class="w-12 h-12 rounded object-cover" onerror="this.src='https://via.placeholder.com/48'">
+                                <img src="${product.images[0] || ''}" alt="Preview" class="w-12 h-12 rounded object-cover bg-gray-200" onerror="this.style.background='#ddd'">
                                 <span class="text-sm text-gray-600">Imagem atual</span>
                             </div>
                         ` : ''}
@@ -1034,7 +1111,7 @@ async function addTestProduct() {
         category: appState.categories?.[0]?.slug || 'outros',
         rating: 4.5,
         affiliateUrl: '#',
-        images: ['https://via.placeholder.com/400x400?text=Teste'],
+        images: [''],  // Sem imagem
         description: 'Produto criado automaticamente para testes via painel admin.',
         badges: [],
         active: true,
@@ -1121,7 +1198,7 @@ function renderFooterStores() {
     let html = appState.stores.map(store => `
         <div class="text-center">
             <div class="bg-white p-3 rounded-lg mb-2 h-16 flex items-center justify-center">
-                <img src="${store.logo}" alt="${store.name}" class="max-h-12 max-w-32 object-contain" onerror="this.src='https://via.placeholder.com/120x40?text=${store.name}'">
+                <img src="${store.logo || ''}" alt="${store.name}" class="max-h-12 max-w-32 object-contain bg-gray-200 p-2 rounded" onerror="this.style.background='#ddd'; this.style.display='flex'; this.style.alignItems='center'; this.style.justifyContent='center'; this.textContent='${store.name}';">
             </div>
             <p class="text-xs text-gray-400">${store.name}</p>
         </div>
