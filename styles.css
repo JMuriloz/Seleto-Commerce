@@ -814,3 +814,26 @@ html.dark .modal-content {
   background: #FF6B35;
   transform: scale(1.2);
 }
+
+/* Reduz o tamanho da janela de adicionar produtos */
+.modal-content {
+    max-width: 500px !important;
+    margin: 20px auto !important;
+    padding: 20px !important;
+}
+
+/* Garante que os inputs não fiquem muito grandes dentro do modal */
+.modal-content input, 
+.modal-content select, 
+.modal-content textarea {
+    font-size: 14px !important;
+    padding: 8px !important;
+}
+
+/* Estilo das setas do carrossel (garantindo visibilidade) */
+#featured-carousel img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Isso impede a foto de ficar gigante ou esticada */
+}
