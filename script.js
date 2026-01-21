@@ -443,14 +443,6 @@ function renderHomePage(container) {
         <section id="produtos-destaque" class="py-12 bg-white">
           ```
 
-#### Alteração B: Na função `renderCarouselSlides`
-Localize a função `renderCarouselSlides` (logo abaixo da anterior). Vamos remover o `min-h-[300px]` e mandar a imagem ocupar 100% da altura que definimos acima.
-
-**Código atualizado da função:**
-
-```javascript
-// No arquivo script.js -> renderCarouselSlides()
-
 function renderCarouselSlides() {
     const slides = appState.featuredProducts.slice(0, 4);
     if (!slides.length) return `<div class="p-12 text-center text-white bg-secondary fade-in">Nenhum destaque ainda.</div>`;
@@ -1277,5 +1269,6 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
