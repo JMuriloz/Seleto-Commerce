@@ -539,26 +539,6 @@ window.goToSlide = function(index) {
     window.moveCarousel(diff);
 };
 
-function startCarousel() {
-    if (appState.carouselInterval) clearInterval(appState.carouselInterval);
-    appState.carouselInterval = setInterval(() => {
-        window.moveCarousel(1);
-    }, 5000);
-}
-
-window.deleteProduct = async function(id) {
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
-    try {
-        await deleteDoc(doc(db, 'products', id));
-        showToast('Produto excluído com sucesso!', 'success');
-        await loadProducts(); // Recarrega a lista
-        renderAdminPanel();   // Atualiza a tela
-    } catch (error) {
-        console.error('Erro ao excluir:', error);
-        showToast('Erro ao excluir produto.', 'error');
-    }
-};
-
 window.editProduct = function(id) {
     openProductModal(id);
 };
@@ -1364,6 +1344,7 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
 
