@@ -470,27 +470,50 @@ function renderHomePage(container) {
 }
 
 function renderCarouselSlides() {
-    const slides = appState.featuredProducts.slice(0, 4);
-    if (!slides.length) return `<div class="w-full h-full flex items-center justify-center text-white">Carregando ofertas...</div>`;
-    
-    return slides.map(product => `
-        <div class="min-w-full h-full relative cursor-pointer" onclick="viewProduct('${product.slug}')">
-          <img src="${product.images?.[0] || ''}" class="w-full h-full object-cover">
-          <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
-             <h3 class="text-xl font-bold text-white">${product.title}</h3>
-             <p class="text-primary font-bold text-2xl">${formatPrice(product.price)}</p>
-          </div>
+    if (appState.featuredProducts.length === 0) {
+        return `<div class="w-full h-full flex items-center justify-center text-gray-500">Nenhum destaque disponível</div>`;
+    }
+    return appState.featuredProducts.map(p => `
+        <div class="min-w-full h-full flex-shrink-0 cursor-pointer" onclick="appState.currentProduct = ${JSON.stringify(p).replace(/"/g, '&quot;')}; navigateTo('product')">
+            <img src="${p.images?.[0]}" class="w-full h-full object-cover" alt="${p.title}">
+            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                <span class="bg-primary text-white text-xs font-bold px-2 py-1 rounded mb-2 inline-block">OFERTA DO DIA</span>
+                <h3 class="text-xl font-bold text-white line-clamp-1">${p.title}</h3>
+                <p class="text-primary font-bold">${formatPrice(p.price)}</p>
+            </div>
         </div>
     `).join('');
 }
+
+window.moveCarousel = function(direction) {
+    const track = document.getElementById('featured-carousel');
+    if (!track) return;
+    
+    const slides = appState.featuredProducts.length;
+    appState.carouselIndex = (appState.carouselIndex + direction + slides) % slides;
+    
+    track.style.transform = `translateX(-${appState.carouselIndex * 100}%)`;
+    updateCarouselDots();
+};
+
+window.goToSlide = function(index) {
+    appState.carouselIndex = index;
+    const track = document.getElementById('featured-carousel');
+    if (track) track.style.transform = `translateX(-${index * 100}%)`;
+    updateCarouselDots();
+};
+
+function updateCarouselDots() {
+    document.querySelectorAll('.dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === appState.carouselIndex);
+    });
+}
+
 function startCarousel() {
     if (appState.carouselInterval) clearInterval(appState.carouselInterval);
-    appState.carouselIndex = 0;
     appState.carouselInterval = setInterval(() => {
-        appState.carouselIndex = (appState.carouselIndex + 1) % Math.max(1, appState.featuredProducts.slice(0,4).length);
-        const track = document.getElementById('featured-carousel');
-        if(track) track.style.transform = `translateX(-${appState.carouselIndex * 100}%)`;
-    }, 4000);
+        window.moveCarousel(1);
+    }, 5000);
 }
 
 // LÓGICA DE MOVIMENTAÇÃO
@@ -522,6 +545,23 @@ function startCarousel() {
         window.moveCarousel(1);
     }, 5000);
 }
+
+window.deleteProduct = async function(id) {
+    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+    try {
+        await deleteDoc(doc(db, 'products', id));
+        showToast('Produto excluído com sucesso!', 'success');
+        await loadProducts(); // Recarrega a lista
+        renderAdminPanel();   // Atualiza a tela
+    } catch (error) {
+        console.error('Erro ao excluir:', error);
+        showToast('Erro ao excluir produto.', 'error');
+    }
+};
+
+window.editProduct = function(id) {
+    openProductModal(id);
+};
 
 // 2. PRODUCT PAGE
 function renderProductPage(container) {
@@ -1324,6 +1364,7 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
 
