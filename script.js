@@ -424,8 +424,10 @@ function renderPage() {
 // No arquivo script.js -> Dentro de renderHomePage(container)
 
 function renderHomePage(container) {
+    // Definimos uma altura fixa para evitar que a imagem fique gigante
     container.innerHTML = `
-        <section class="hero-gradient text-white py-12 md:py-16"> <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
+        <section class="hero-gradient text-white py-10 md:py-14">
+          <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
              <div class="fade-in">
                 <h1 class="text-3xl md:text-5xl font-bold mb-4 leading-tight">Melhores Ofertas do Dia</h1>
                 <p class="text-lg text-gray-300 mb-8">Selecionamos os melhores produtos com preços imbatíveis.</p>
@@ -434,28 +436,49 @@ function renderHomePage(container) {
                 </div>
              </div>
              
-             <div class="carousel-container rounded-2xl overflow-hidden shadow-2xl h-64 md:h-80 w-full">
-                <div id="featured-carousel" class="carousel-track h-full">
+             <div class="relative w-full h-[300px] md:h-[380px] rounded-2xl overflow-hidden shadow-2xl group bg-gray-800">
+                <div id="featured-carousel" class="flex h-full transition-transform duration-500 ease-out">
                   ${renderCarouselSlides()}
+                </div>
+
+                <button onclick="window.moveCarousel(-1)" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <button onclick="window.moveCarousel(1)" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                    ${appState.featuredProducts.slice(0, 4).map((_, i) => `
+                        <div onclick="window.goToSlide(${i})" class="dot-indicator w-2 h-2 rounded-full bg-white/50 cursor-pointer transition-all ${i === appState.carouselIndex ? 'bg-primary w-4' : ''}" id="dot-${i}"></div>
+                    `).join('')}
                 </div>
              </div>
           </div>
         </section>
 
         <section id="produtos-destaque" class="py-12 bg-white">
-          ```
+          <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-2xl font-bold mb-6">🔥 Em Alta</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              ${renderProductCards(appState.products.filter(p => p.badges?.includes('em_alta')).slice(0, 4))}
+            </div>
+          </div>
+        </section>
+    `;
+    startCarousel();
+}
 
 function renderCarouselSlides() {
     const slides = appState.featuredProducts.slice(0, 4);
-    if (!slides.length) return `<div class="p-12 text-center text-white bg-secondary fade-in">Nenhum destaque ainda.</div>`;
+    if (!slides.length) return `<div class="w-full h-full flex items-center justify-center text-white">Carregando ofertas...</div>`;
     
-    return slides.map((product, i) => `
-        <div class="carousel-slide relative h-full w-full cursor-pointer fade-in" onclick="viewProduct('${product.slug}')" style="animation-delay: ${i * 0.15}s">
-          <img src="${product.images?.[0] || ''}" class="w-full h-full object-cover bg-gray-300" onerror="this.style.background='#ddd'">
-          
-          <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent">
-             <h3 class="text-lg font-bold text-white truncate">${product.title}</h3>
-             <p class="text-primary font-bold text-xl">${formatPrice(product.price)}</p>
+    return slides.map(product => `
+        <div class="min-w-full h-full relative cursor-pointer" onclick="viewProduct('${product.slug}')">
+          <img src="${product.images?.[0] || ''}" class="w-full h-full object-cover">
+          <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
+             <h3 class="text-xl font-bold text-white">${product.title}</h3>
+             <p class="text-primary font-bold text-2xl">${formatPrice(product.price)}</p>
           </div>
         </div>
     `).join('');
@@ -468,6 +491,36 @@ function startCarousel() {
         const track = document.getElementById('featured-carousel');
         if(track) track.style.transform = `translateX(-${appState.carouselIndex * 100}%)`;
     }, 4000);
+}
+
+// LÓGICA DE MOVIMENTAÇÃO
+window.moveCarousel = function(step) {
+    const track = document.getElementById('featured-carousel');
+    const total = Math.min(appState.featuredProducts.slice(0, 4).length, 4);
+    if (!track || total === 0) return;
+
+    appState.carouselIndex = (appState.carouselIndex + step + total) % total;
+    track.style.transform = `translateX(-${appState.carouselIndex * 100}%)`;
+    
+    // Atualiza bolinhas
+    document.querySelectorAll('.dot-indicator').forEach((dot, i) => {
+        dot.classList.toggle('bg-primary', i === appState.carouselIndex);
+        dot.classList.toggle('w-4', i === appState.carouselIndex);
+        dot.classList.toggle('bg-white/50', i !== appState.carouselIndex);
+        dot.classList.toggle('w-2', i !== appState.carouselIndex);
+    });
+};
+
+window.goToSlide = function(index) {
+    const diff = index - appState.carouselIndex;
+    window.moveCarousel(diff);
+};
+
+function startCarousel() {
+    if (appState.carouselInterval) clearInterval(appState.carouselInterval);
+    appState.carouselInterval = setInterval(() => {
+        window.moveCarousel(1);
+    }, 5000);
 }
 
 // 2. PRODUCT PAGE
@@ -1271,6 +1324,7 @@ function renderFooterStores() {
     console.log("Aplicação carregada com sucesso.");
 
 })();
+
 
 
 
